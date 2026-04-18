@@ -26,7 +26,9 @@
 
 ## 🖼️ Screenshots
 
-> *(Add screenshots here after installing the extension in Manager.io)*
+> <img width="1463" height="468" alt="image" src="https://github.com/user-attachments/assets/7733e4d1-3724-4ff9-874f-2e2eab56118b" />
+
+> <img width="1482" height="576" alt="image" src="https://github.com/user-attachments/assets/67bc00b1-131f-472a-b63d-edd0486183d3" />
 
 ---
 
