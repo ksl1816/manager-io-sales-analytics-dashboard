@@ -26,9 +26,14 @@
 
 ## 🖼️ Screenshots
 
-> <img width="1463" height="468" alt="image" src="https://github.com/user-attachments/assets/7733e4d1-3724-4ff9-874f-2e2eab56118b" />
-
 > <img width="1482" height="576" alt="image" src="https://github.com/user-attachments/assets/67bc00b1-131f-472a-b63d-edd0486183d3" />
+
+> <img width="1477" height="657" alt="image" src="https://github.com/user-attachments/assets/e38430f0-47ee-474b-b896-5d4c22a6433e" />
+
+>  <img width="267" height="178" alt="image" src="https://github.com/user-attachments/assets/c069aa7a-82b1-44d1-a3d1-a1cbdfc7b41d" />
+
+
+><img width="1463" height="468" alt="image" src="https://github.com/user-attachments/assets/7733e4d1-3724-4ff9-874f-2e2eab56118b" />
 
 ---
 
@@ -97,7 +102,7 @@ This extension only **reads** data — it makes no write, edit, or delete calls 
 
 ## 🛠️ Built With
 
-This extension was built using the **[Manager.io Developer Toolkit](https://github.com/ksl1816/manager-developer-toolkit-extenstion)** — a companion extension that lets you explore Manager.io API endpoints and generate AI prompts for building extensions like this one.
+This extension was built using the **[Manager.io Developer Toolkit](https://github.com/ksl1816/manager-developer-toolkit-extenstion)** — and AI tools a companion extension that lets you explore Manager.io API endpoints and generate AI prompts for building extensions like this one.
 
 ---
 
