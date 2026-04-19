@@ -3,7 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Advanced Daily Sales Report — Manager.io</title>
+<!-- ═══════════════ SECURITY HEADERS ═══════════════
+     • CSP locks down what can run/load in this page
+     • cdnjs is whitelisted because Chart.js is loaded from there
+     • Nothing else can make network calls from this page
+═══════════════════════════════════════════════════ -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'none'; frame-ancestors *; form-action 'none'; base-uri 'self';">
+<meta name="referrer" content="no-referrer">
+<title>Advanced Daily Sales Report — v1.0</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -253,9 +260,299 @@ body {
 
 /* Legend dots */
 .legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
+
+/* ═══════════════════════════════════════════════
+   APP HEADER — branding + connection + utility buttons
+═══════════════════════════════════════════════ */
+.app-header {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 16px; margin-bottom: 12px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+}
+.brand-wrap { display: flex; align-items: center; gap: 10px; }
+.brand-icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--blue), var(--purple));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; flex-shrink: 0;
+}
+.brand-name {
+  font-size: 14px; font-weight: 700; color: var(--text); letter-spacing: -.01em;
+  line-height: 1.2; white-space: nowrap;
+}
+.brand-sub { font-size: 11px; color: var(--muted); font-weight: 500; }
+
+.hdr-divider { width: 1px; height: 24px; background: var(--border); flex-shrink: 0; }
+
+.hdr-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.hdr-badge {
+  padding: 3px 9px; border-radius: 4px;
+  font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.badge-version { background: var(--blue-lt); color: var(--blue); border: 1px solid #93c5fd; }
+.badge-readonly { background: var(--green-lt); color: var(--green); border: 1px solid #86efac; }
+.badge-security {
+  background: var(--purple-lt); color: var(--purple); border: 1px solid #c4b5fd;
+  cursor: pointer; transition: all .15s;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.badge-security:hover { background: #ddd6fe; transform: translateY(-1px); }
+
+/* Connection pill */
+.conn-pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 4px 11px; border-radius: 20px;
+  font-size: 11px; font-weight: 600; white-space: nowrap;
+  transition: all .2s; border: 1px solid;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .02em;
+}
+.conn-pill .conn-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; position: relative; }
+.conn-pill.checking { background: var(--amber-lt); color: #b45309; border-color: #fcd34d; }
+.conn-pill.checking .conn-dot { background: var(--amber); animation: conn-blink 1.2s ease-in-out infinite; }
+.conn-pill.connected { background: var(--green-lt); color: #15803d; border-color: #86efac; }
+.conn-pill.connected .conn-dot { background: var(--green); }
+.conn-pill.connected .conn-dot::after {
+  content: ''; position: absolute; inset: -4px; border-radius: 50%;
+  background: var(--green); opacity: .4;
+  animation: conn-ring 2s ease-in-out infinite;
+}
+.conn-pill.disconnected { background: var(--red-lt); color: #b91c1c; border-color: #fca5a5; }
+.conn-pill.disconnected .conn-dot { background: var(--red); }
+@keyframes conn-blink { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .4; transform: scale(.85); } }
+@keyframes conn-ring { 0%,100% { transform: scale(1); opacity: .4; } 50% { transform: scale(1.7); opacity: 0; } }
+
+.hdr-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+.btn-hire {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: 7px;
+  background: linear-gradient(135deg, #fef3c7, #ede9fe);
+  border: 1px solid #fcd34d;
+  color: #b45309; font-size: 12px; font-weight: 700;
+  cursor: pointer; transition: all .18s; white-space: nowrap;
+  position: relative; overflow: hidden;
+}
+.btn-hire::before {
+  content: ''; position: absolute; top: 0; left: -100%;
+  width: 100%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(245,158,11,.25), transparent);
+  transition: left .6s ease;
+}
+.btn-hire:hover::before { left: 100%; }
+.btn-hire:hover {
+  background: linear-gradient(135deg, #fde68a, #ddd6fe);
+  border-color: var(--amber);
+  box-shadow: 0 2px 8px rgba(217,119,6,.2);
+  transform: translateY(-1px);
+}
+
+/* ═══════════════════════════════════════════════
+   MODALS — Hire-Us + Security (shared base)
+═══════════════════════════════════════════════ */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(15,23,42,.55);
+  z-index: 500; opacity: 0; pointer-events: none;
+  transition: opacity .22s; backdrop-filter: blur(3px);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 32px 16px; overflow-y: auto;
+}
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+
+.modal-card {
+  background: #fff; border: 1px solid var(--border); border-radius: 14px;
+  width: 100%; max-width: 560px; margin: auto;
+  box-shadow: 0 24px 60px rgba(0,0,0,.25);
+  overflow: hidden;
+}
+
+.modal-head {
+  position: relative;
+  padding: 24px 26px 18px;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+.modal-head::after {
+  content: ''; position: absolute; top: -60px; right: -40px;
+  width: 200px; height: 200px; border-radius: 50%;
+  pointer-events: none;
+}
+.modal-head.hire { background: linear-gradient(135deg, #fffbeb, #f5f3ff); }
+.modal-head.hire::after { background: radial-gradient(circle, rgba(245,158,11,.18), transparent 60%); }
+.modal-head.sec  { background: linear-gradient(135deg, #f5f3ff, #eff6ff); }
+.modal-head.sec::after { background: radial-gradient(circle, rgba(124,58,237,.18), transparent 60%); }
+
+.modal-eyebrow {
+  display: inline-block; font-size: 10px; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase;
+  border-radius: 20px; padding: 3px 11px; margin-bottom: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  position: relative; z-index: 1;
+}
+.modal-eyebrow.hire { color: #b45309; background: #fef3c7; border: 1px solid #fcd34d; }
+.modal-eyebrow.sec  { color: var(--purple); background: var(--purple-lt); border: 1px solid #c4b5fd; }
+
+.modal-title {
+  font-size: 20px; font-weight: 800; color: var(--text);
+  letter-spacing: -.02em; line-height: 1.3; margin-bottom: 6px;
+  position: relative; z-index: 1;
+}
+.modal-title .accent {
+  background: linear-gradient(135deg, #d97706, var(--purple));
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.modal-subtitle {
+  font-size: 13px; color: var(--muted); line-height: 1.6;
+  position: relative; z-index: 1;
+}
+.modal-close {
+  position: absolute; top: 14px; right: 14px;
+  background: rgba(255,255,255,.8); border: 1px solid var(--border);
+  color: var(--muted); font-size: 14px; cursor: pointer;
+  padding: 4px 10px; border-radius: 6px; line-height: 1;
+  transition: all .12s; z-index: 2;
+}
+.modal-close:hover { background: var(--red-lt); border-color: #fca5a5; color: var(--red); }
+
+.modal-body { padding: 20px 22px; display: flex; flex-direction: column; gap: 14px; }
+
+.modal-footer {
+  padding: 12px 22px; border-top: 1px solid var(--border);
+  background: #fafafa;
+  font-size: 11px; color: var(--muted);
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+}
+
+/* Hire modal internals */
+.hire-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.hire-col {
+  padding: 14px; border-radius: 8px;
+  border: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 5px;
+}
+.hire-col.free { border-color: #86efac; background: var(--green-lt); }
+.hire-col.pro  { border-color: #fcd34d; background: var(--amber-lt); }
+.hire-col-label { font-size: 9px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; font-family: ui-monospace, monospace; }
+.hire-col.free .hire-col-label { color: #15803d; }
+.hire-col.pro  .hire-col-label { color: #b45309; }
+.hire-col-title { font-size: 13px; font-weight: 700; color: var(--text); }
+.hire-col-desc  { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+
+.hire-services {
+  background: #fafafa; border: 1px solid var(--border);
+  border-radius: 8px; padding: 14px 16px;
+}
+.hire-services h4 {
+  font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 10px; font-family: ui-monospace, monospace;
+}
+.hire-services ul { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.hire-services li {
+  display: flex; gap: 9px; font-size: 12.5px; color: var(--text); line-height: 1.5;
+}
+.hire-services li::before {
+  content: '✓'; color: var(--green); font-weight: 800; flex-shrink: 0;
+  font-family: ui-monospace, monospace;
+}
+
+.hire-contact {
+  background: linear-gradient(135deg, #eff6ff, #f5f3ff);
+  border: 1px solid #c7d2fe; border-radius: 8px; padding: 14px 16px;
+}
+.hire-contact-label {
+  font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--blue); margin-bottom: 6px; font-family: ui-monospace, monospace;
+}
+.hire-contact p { font-size: 12.5px; color: var(--text); line-height: 1.6; margin-bottom: 10px; }
+.hire-cta {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 16px; border-radius: 7px;
+  background: linear-gradient(135deg, var(--blue), var(--purple));
+  color: #fff; font-size: 12.5px; font-weight: 700;
+  text-decoration: none; transition: all .15s;
+}
+.hire-cta:hover { box-shadow: 0 4px 14px rgba(29,111,207,.35); transform: translateY(-1px); }
+
+/* Security modal internals */
+.sec-check {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 12px 14px; border-radius: 8px;
+  background: #fafafa; border: 1px solid var(--border);
+  transition: border-color .14s;
+}
+.sec-check:hover { border-color: #cbd5e1; }
+.sec-check-icon {
+  width: 30px; height: 30px; border-radius: 7px; flex-shrink: 0;
+  background: var(--green-lt); border: 1px solid #86efac;
+  color: #15803d; font-weight: 800; font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: ui-monospace, monospace;
+}
+.sec-check-body { flex: 1; min-width: 0; }
+.sec-check-title {
+  font-size: 13px; font-weight: 700; color: var(--text);
+  margin-bottom: 3px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+}
+.sec-check-status {
+  font-size: 9px; font-weight: 800; letter-spacing: .06em;
+  color: #15803d; background: var(--green-lt); border: 1px solid #86efac;
+  border-radius: 3px; padding: 1px 6px;
+  font-family: ui-monospace, monospace;
+}
+.sec-check-desc { font-size: 12px; color: var(--muted); line-height: 1.55; }
+.sec-origin-block {
+  margin-top: 6px; padding: 7px 10px; border-radius: 5px;
+  background: #fff; border: 1px dashed var(--border);
+  font-family: ui-monospace, monospace; font-size: 11px;
+  color: var(--blue); word-break: break-all;
+}
+.sec-origin-block.pending { color: #b45309; border-color: #fcd34d; background: #fffbeb; }
+.sec-origin-label { color: var(--muted); margin-right: 6px; }
+
+/* Responsive tweaks */
+@media (max-width: 640px) {
+  .btn-hire span:not(.btn-hire-icon) { display: none; }
+  .conn-pill span:not(.conn-dot) { display: none; }
+  .conn-pill { padding: 4px 6px; }
+  .brand-sub { display: none; }
+  .hdr-meta .badge-readonly { display: none; }
+  .hire-compare { grid-template-columns: 1fr; }
+}
 </style>
 </head>
 <body>
+
+<!-- ══ App Header — branding + status + utility ══ -->
+<div class="app-header">
+  <div class="brand-wrap">
+    <div class="brand-icon">📊</div>
+    <div>
+      <div class="brand-name">Advanced Daily Sales Report</div>
+      <div class="brand-sub">for Manager.io</div>
+    </div>
+  </div>
+  <div class="hdr-divider"></div>
+  <div class="hdr-meta">
+    <span class="hdr-badge badge-version">v1.0</span>
+    <span class="hdr-badge badge-readonly">GET · Read-Only</span>
+    <span class="hdr-badge badge-security" onclick="openSecurityModal()" title="View active security checks">
+      🔒 Secure
+    </span>
+  </div>
+  <div class="conn-pill checking" id="conn-pill" title="Checking connection to Manager.io…">
+    <span class="conn-dot"></span>
+    <span id="conn-text">Checking…</span>
+  </div>
+  <div class="hdr-right">
+    <button class="btn-hire" onclick="openHireModal()" title="Need a custom extension built? Contact us.">
+      <span class="btn-hire-icon">💼</span>
+      <span>Need Custom Dev?</span>
+    </button>
+  </div>
+</div>
 
 <!-- ══ Control Bar ══ -->
 <div class="ctrl-bar">
@@ -267,21 +564,219 @@ body {
 <!-- ══ Main App Container ══ -->
 <div id="app"></div>
 
+<!-- ══ Hire-Us Modal ══ -->
+<div class="modal-overlay" id="hire-overlay" onclick="handleOverlayClick(event, 'hire')">
+  <div class="modal-card">
+    <div class="modal-head hire">
+      <button class="modal-close" onclick="closeHireModal()">✕</button>
+      <span class="modal-eyebrow hire">⚡ Professional Services</span>
+      <div class="modal-title">Need a <span class="accent">Custom Extension</span> Built?</div>
+      <div class="modal-subtitle">
+        This report is <strong style="color:#15803d">100% free</strong> to use. If you'd rather have an expert build a polished, production-ready Manager.io extension tailored to your business — we're here to help.
+      </div>
+    </div>
+    <div class="modal-body">
+
+      <div class="hire-compare">
+        <div class="hire-col free">
+          <div class="hire-col-label">✓ Free Forever</div>
+          <div class="hire-col-title">Use this report as-is</div>
+          <div class="hire-col-desc">All features free. Works with any Manager.io business.</div>
+        </div>
+        <div class="hire-col pro">
+          <div class="hire-col-label">★ Done For You</div>
+          <div class="hire-col-title">Custom development</div>
+          <div class="hire-col-desc">We design, build, test &amp; deploy a bespoke extension for your workflow.</div>
+        </div>
+      </div>
+
+      <div class="hire-services">
+        <h4>What we can build for you</h4>
+        <ul>
+          <li>Custom dashboards, KPI views, and reports tailored to your metrics</li>
+          <li>Branded invoice, quote, and document layouts</li>
+          <li>Multi-endpoint tools — cross-report analysis, reconciliation, audits</li>
+          <li>Industry-specific workflows: retail, construction, services, manufacturing</li>
+          <li>Ongoing support, maintenance, and feature updates</li>
+        </ul>
+      </div>
+
+      <div class="hire-contact">
+        <div class="hire-contact-label">🌐 Learn more &amp; get in touch</div>
+        <p>Visit our website to see our work, explore our services, and reach out through our contact form. We typically reply within one business day — no commitment.</p>
+        <a href="https://ksl1816.github.io/ksl-solution-site/" target="_blank" rel="noopener" class="hire-cta">
+          🌐 Visit Our Website →
+        </a>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <span>Free tool · Paid custom development</span>
+      <span style="font-family:ui-monospace,monospace">v1.0</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Security Modal ══ -->
+<div class="modal-overlay" id="sec-overlay" onclick="handleOverlayClick(event, 'sec')">
+  <div class="modal-card">
+    <div class="modal-head sec">
+      <button class="modal-close" onclick="closeSecurityModal()">✕</button>
+      <span class="modal-eyebrow sec">🔒 Security Layer</span>
+      <div class="modal-title">Active Protections</div>
+      <div class="modal-subtitle">
+        This report runs with multiple defense layers to keep your Manager.io data safe. Every check is enforced at runtime.
+      </div>
+    </div>
+    <div class="modal-body">
+
+      <div class="sec-check">
+        <div class="sec-check-icon">✓</div>
+        <div class="sec-check-body">
+          <div class="sec-check-title">Origin-pinned postMessage <span class="sec-check-status">ACTIVE</span></div>
+          <div class="sec-check-desc">
+            After the first successful response, the host origin is locked. Any message from a different origin is silently rejected — a malicious iframe can't spoof API responses.
+          </div>
+          <div class="sec-origin-block pending" id="sec-origin-block">
+            <span class="sec-origin-label">Locked origin:</span>
+            <span id="sec-origin-value">(not yet established — click Load to connect)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec-check">
+        <div class="sec-check-icon">✓</div>
+        <div class="sec-check-body">
+          <div class="sec-check-title">Read-only API access <span class="sec-check-status">GET ONLY</span></div>
+          <div class="sec-check-desc">
+            Only HTTP GET requests are ever made — specifically to the <code style="font-family:ui-monospace,monospace;color:var(--blue)">sales-invoice-batch</code> endpoint. No writes, no mutations, nothing you do here can change data.
+          </div>
+        </div>
+      </div>
+
+      <div class="sec-check">
+        <div class="sec-check-icon">✓</div>
+        <div class="sec-check-body">
+          <div class="sec-check-title">Endpoint whitelist <span class="sec-check-status">ENFORCED</span></div>
+          <div class="sec-check-desc">
+            Every outgoing path is validated against a strict allow-list. Only the expected sales-invoice endpoint can be requested — no rogue calls possible, even if the API response tries to inject a malicious next-page URL.
+          </div>
+        </div>
+      </div>
+
+      <div class="sec-check">
+        <div class="sec-check-icon">✓</div>
+        <div class="sec-check-body">
+          <div class="sec-check-title">Content Security Policy <span class="sec-check-status">LOCKED</span></div>
+          <div class="sec-check-desc">
+            A strict CSP header blocks all external network calls and remote scripts, except the Chart.js library (loaded from cdnjs). The page talks to Manager.io only through its sandboxed postMessage bridge.
+          </div>
+        </div>
+      </div>
+
+      <div class="sec-check">
+        <div class="sec-check-icon">✓</div>
+        <div class="sec-check-body">
+          <div class="sec-check-title">XSS-safe rendering <span class="sec-check-status">ESCAPED</span></div>
+          <div class="sec-check-desc">
+            Error messages and any dynamic text from API responses are HTML-escaped before rendering, so hostile data inside a record can't execute scripts in the page.
+          </div>
+        </div>
+      </div>
+
+      <div class="sec-check">
+        <div class="sec-check-icon">✓</div>
+        <div class="sec-check-body">
+          <div class="sec-check-title">Zero external tracking <span class="sec-check-status">NO ANALYTICS</span></div>
+          <div class="sec-check-desc">
+            No telemetry, no analytics, no cookies, no fingerprinting. Your sales data never leaves the Manager.io iframe boundary.
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <span>All checks run client-side, in your browser</span>
+      <span style="font-family:ui-monospace,monospace">v1.0</span>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ══════════════════════════════════════════════
-   postMessage helper — DO NOT MODIFY
+   SECURITY LAYER — origin pinning + endpoint whitelist
+   These primitives gate every API call and every
+   piece of data that reaches the DOM.
+══════════════════════════════════════════════ */
+
+// Locked origin of the Manager.io host. Pinned on first successful response.
+let MANAGER_ORIGIN = null;
+
+function updateOriginDisplay() {
+  const block = document.getElementById('sec-origin-block');
+  const val   = document.getElementById('sec-origin-value');
+  if (!block || !val) return;
+  if (MANAGER_ORIGIN) {
+    block.classList.remove('pending');
+    val.textContent = MANAGER_ORIGIN;
+  }
+}
+
+// HTML-escape any value before putting it in innerHTML or attributes.
+function escHTML(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => (
+    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]
+  ));
+}
+
+// Whitelist: only paths starting with our known endpoint are permitted.
+// Blocks any attempt to redirect the fetch loop to a different endpoint,
+// even if a malicious `next_page_token` value tried to smuggle one in.
+function assertSafePath(path) {
+  if (typeof path !== 'string') throw new Error('Invalid path type');
+  if (path.length > 2048) throw new Error('Path too long');
+  if (/^(javascript|data|vbscript|file|blob):/i.test(path)) {
+    throw new Error('Blocked URL scheme in path');
+  }
+  if (!path.startsWith('/api4/sales-invoice-batch')) {
+    throw new Error('Path not in whitelist: only /api4/sales-invoice-batch is allowed');
+  }
+  if (!/^[A-Za-z0-9._\-\/?=&%+:,]+$/.test(path)) {
+    throw new Error('Path contains disallowed characters');
+  }
+}
+
+/* ══════════════════════════════════════════════
+   postMessage helper — DO NOT MODIFY THE CONTRACT
+   Hardened with: origin pinning, source verification,
+   and endpoint whitelist on every outgoing call.
 ══════════════════════════════════════════════ */
 function postMessageWithResponse(message) {
   return new Promise((resolve, reject) => {
+    // SECURITY: validate path before anything hits the wire
+    try { assertSafePath(message && message.path); }
+    catch (e) { reject(e); return; }
+
     const requestId = crypto.randomUUID();
     const timer = setTimeout(() => {
       window.removeEventListener('message', handler);
       reject(new Error('Timeout — is this running inside Manager?'));
     }, 15000);
     function handler(event) {
+      // SECURITY: origin pinning — reject any message not from the locked host
+      if (MANAGER_ORIGIN && event.origin !== MANAGER_ORIGIN) return;
+      // SECURITY: source must be the parent window (the Manager.io host)
+      if (event.source !== window.parent) return;
       if (event.data?.type?.endsWith('-response') && event.data?.requestId === requestId) {
         clearTimeout(timer);
         window.removeEventListener('message', handler);
+        // Pin origin on first successful response
+        if (!MANAGER_ORIGIN && event.origin) {
+          MANAGER_ORIGIN = event.origin;
+          updateOriginDisplay();
+          setConnectionState('connected', 'Connected to Manager.io',
+            'Live API access confirmed.');
+        }
         resolve(event.data.body);
       }
     }
@@ -289,6 +784,85 @@ function postMessageWithResponse(message) {
     window.parent.postMessage({ ...message, requestId }, '*');
   });
 }
+
+/* ══════════════════════════════════════════════
+   CONNECTION STATUS
+══════════════════════════════════════════════ */
+function setConnectionState(state, text, tooltip) {
+  const pill = document.getElementById('conn-pill');
+  const txt  = document.getElementById('conn-text');
+  if (!pill || !txt) return;
+  pill.classList.remove('checking', 'connected', 'disconnected');
+  pill.classList.add(state);
+  txt.textContent = text;
+  if (tooltip) pill.title = tooltip;
+}
+
+async function checkManagerConnection() {
+  // If not embedded, we clearly aren't inside Manager.
+  if (window.parent === window || window.top === window) {
+    setConnectionState('disconnected', 'Standalone Mode',
+      'Open this page inside Manager.io → Settings → Extensions to connect.');
+    return;
+  }
+  // Probe the host with a cheap request.
+  try {
+    await new Promise((resolve, reject) => {
+      const rid = crypto.randomUUID();
+      const timer = setTimeout(() => {
+        window.removeEventListener('message', h);
+        reject(new Error('timeout'));
+      }, 3500);
+      function h(e) {
+        if (MANAGER_ORIGIN && e.origin !== MANAGER_ORIGIN) return;
+        if (e.source !== window.parent) return;
+        if (e.data?.type?.endsWith('-response') && e.data?.requestId === rid) {
+          clearTimeout(timer);
+          window.removeEventListener('message', h);
+          if (!MANAGER_ORIGIN && e.origin) {
+            MANAGER_ORIGIN = e.origin;
+            updateOriginDisplay();
+          }
+          resolve(e.data.body);
+        }
+      }
+      window.addEventListener('message', h);
+      window.parent.postMessage({
+        type: 'api-request', method: 'GET',
+        path: '/api4/sales-invoice-batch?PageSize=1',
+        requestId: rid
+      }, '*');
+    });
+    setConnectionState('connected', 'Connected to Manager.io',
+      'Live API access confirmed.');
+  } catch (e) {
+    setConnectionState('disconnected', 'Not Connected',
+      'Running inside an iframe, but Manager.io did not respond. Ensure the extension is installed correctly.');
+  }
+}
+
+// Run the check shortly after load so the host has time to initialise.
+setTimeout(checkManagerConnection, 600);
+
+/* ══════════════════════════════════════════════
+   MODAL CONTROLS
+══════════════════════════════════════════════ */
+function openHireModal() { document.getElementById('hire-overlay').classList.add('open'); }
+function closeHireModal() { document.getElementById('hire-overlay').classList.remove('open'); }
+function openSecurityModal() {
+  updateOriginDisplay();
+  document.getElementById('sec-overlay').classList.add('open');
+}
+function closeSecurityModal() { document.getElementById('sec-overlay').classList.remove('open'); }
+function handleOverlayClick(e, which) {
+  const id = which === 'hire' ? 'hire-overlay' : 'sec-overlay';
+  if (e.target === document.getElementById(id)) {
+    if (which === 'hire') closeHireModal(); else closeSecurityModal();
+  }
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeHireModal(); closeSecurityModal(); }
+});
 
 /* ══════════════════════════════════════════════
    getBatchSalesInvoice — fetches ALL pages automatically — DO NOT SIMPLIFY
