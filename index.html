@@ -301,8 +301,8 @@ async function getBatchSalesInvoice(onProgress) {
 
   do {
     const path = nextToken
-      ? '/api4/batch-sales-invoice?PageSize=99999&next_page_token=' + encodeURIComponent(nextToken)
-      : '/api4/batch-sales-invoice?PageSize=99999';
+      ? '/api4/sales-invoice-batch?PageSize=99999&next_page_token=' + encodeURIComponent(nextToken)
+      : '/api4/sales-invoice-batch?PageSize=99999';
 
     const data = await postMessageWithResponse({ type: 'api-request', method: 'GET', path });
 
