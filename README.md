@@ -17,7 +17,7 @@
 - **Interactive charts** — line charts per month and an overlay comparison chart powered by Chart.js
 - **Smart insights** — automatically generated analysis including trend detection (upward / declining / volatile), best and worst months, and consistently strong or weak days across months
 - **Flexible filters** — filter by year, individual months, or a custom date range
-- **Auto currency detection** — reads the currency from your Manager.io data automatically; works for any country and any currency (USD, EUR, GBP, KWD, SAR, and more)
+- **Auto currency conversion into base currency** — convert the foreign currency into base currency to adapt the reporting figures correct. 
 - **Table / Chart / Both toggle** — switch views per month without losing your place
 - **Best and worst day highlighting** — 🏆 best day and ⚠ worst day are visually marked in every monthly table
 - **Fully paginated data fetch** — loads every invoice across all API pages; never misses a record
