@@ -1,4 +1,4 @@
-<!doctype html>
+-<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -665,6 +665,222 @@ body {
 }
 .cs-badge.planned { background: var(--blue-lt); color: var(--blue); border: 1px solid #93c5fd; }
 .cs-badge.data-ready { background: var(--green-lt); color: var(--green); border: 1px solid #86efac; }
+
+/* ══════════════════════════════════════════════
+   EDIT INVOICE MODAL
+══════════════════════════════════════════════ */
+.edit-modal-overlay {
+  position: fixed; inset: 0; background: rgba(15,23,42,.6);
+  z-index: 600; opacity: 0; pointer-events: none;
+  transition: opacity .22s; backdrop-filter: blur(4px);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 20px 16px; overflow-y: auto;
+}
+.edit-modal-overlay.open { opacity: 1; pointer-events: all; }
+
+.edit-modal-card {
+  background: #fff; border: 1px solid var(--border); border-radius: 16px;
+  width: 100%; max-width: 740px; margin: auto;
+  box-shadow: 0 28px 70px rgba(0,0,0,.28); overflow: hidden;
+  animation: slideUp .22s ease;
+}
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.edit-modal-header {
+  padding: 20px 24px 16px;
+  background: linear-gradient(135deg, #eff6ff, #f5f3ff);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 12px;
+}
+.edit-modal-header-left { flex: 1; }
+.edit-modal-eyebrow {
+  font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--blue); font-family: ui-monospace, monospace;
+  display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
+}
+.edit-modal-title {
+  font-size: 19px; font-weight: 800; color: var(--text);
+  letter-spacing: -.02em; line-height: 1.2;
+}
+.edit-modal-subtitle {
+  font-size: 12px; color: var(--muted); margin-top: 4px;
+}
+.edit-modal-close {
+  background: rgba(255,255,255,.85); border: 1px solid var(--border);
+  color: var(--muted); font-size: 14px; cursor: pointer;
+  padding: 5px 11px; border-radius: 7px; line-height: 1;
+  transition: all .12s; flex-shrink: 0;
+}
+.edit-modal-close:hover { background: var(--red-lt); border-color: #fca5a5; color: var(--red); }
+
+/* Form body */
+.edit-modal-body {
+  padding: 20px 24px;
+  display: flex; flex-direction: column; gap: 0;
+  max-height: calc(100vh - 220px); overflow-y: auto;
+}
+
+/* Section blocks */
+.edit-section {
+  border: 1px solid var(--border); border-radius: 10px;
+  overflow: hidden; margin-bottom: 14px;
+}
+.edit-section-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  background: var(--light); border-bottom: 1px solid var(--border);
+  font-size: 11px; font-weight: 800; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .08em;
+}
+.edit-section-icon { font-size: 14px; }
+.edit-section-body { padding: 14px; }
+
+/* Form rows & groups */
+.form-row {
+  display: grid; gap: 12px; margin-bottom: 12px;
+}
+.form-row:last-child { margin-bottom: 0; }
+.form-row.cols-2 { grid-template-columns: 1fr 1fr; }
+.form-row.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+.form-row.cols-1 { grid-template-columns: 1fr; }
+
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-label {
+  font-size: 11px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .05em;
+}
+.form-label .required { color: var(--red); margin-left: 2px; }
+.form-input, .form-select, .form-textarea {
+  padding: 8px 11px; border: 1.5px solid var(--border); border-radius: 7px;
+  font-size: 13px; color: var(--text); background: #fff;
+  outline: none; transition: border-color .15s, box-shadow .15s;
+  font-family: inherit; width: 100%;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(29,111,207,.12);
+}
+.form-input.error, .form-select.error { border-color: var(--red); }
+.form-input::placeholder { color: #cbd5e1; }
+.form-textarea { resize: vertical; min-height: 70px; }
+.form-select { cursor: pointer; }
+
+/* Status badges inside form */
+.form-status-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+.status-opt {
+  padding: 5px 14px; border-radius: 20px; border: 1.5px solid var(--border);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  background: #fff; color: var(--muted); transition: all .15s;
+}
+.status-opt.active-opt { background: var(--green); border-color: var(--green); color: #fff; }
+.status-opt[data-val="draft"].active-opt { background: var(--amber); border-color: var(--amber); color: #fff; }
+.status-opt[data-val="overdue"].active-opt { background: var(--red); border-color: var(--red); color: #fff; }
+
+/* Line items table */
+.line-items-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.line-items-table th {
+  background: var(--light); padding: 7px 9px; text-align: left;
+  font-size: 10px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .05em;
+  border-bottom: 1px solid var(--border);
+}
+.line-items-table td { padding: 6px 5px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+.line-items-table tr:last-child td { border-bottom: none; }
+.line-items-table .line-input {
+  padding: 6px 8px; border: 1.5px solid var(--border); border-radius: 5px;
+  font-size: 12px; width: 100%; outline: none;
+  transition: border-color .15s; font-family: inherit;
+}
+.line-items-table .line-input:focus { border-color: var(--blue); }
+.line-items-table .line-input.num { text-align: right; }
+.line-total-cell { font-weight: 700; color: var(--blue); text-align: right; font-size: 12px; white-space: nowrap; }
+.btn-remove-line {
+  background: var(--red-lt); color: var(--red); border: none;
+  width: 24px; height: 24px; border-radius: 5px; cursor: pointer;
+  font-size: 13px; display: flex; align-items: center; justify-content: center;
+  transition: background .15s;
+}
+.btn-remove-line:hover { background: #fecaca; }
+
+.btn-add-line {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border: 1.5px dashed var(--blue); border-radius: 6px;
+  color: var(--blue); background: var(--blue-lt); font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all .15s; margin-top: 10px;
+}
+.btn-add-line:hover { background: #bfdbfe; }
+
+/* Line totals summary */
+.line-totals-summary {
+  margin-top: 12px; padding: 12px 14px;
+  background: var(--light); border-radius: 8px;
+  display: flex; justify-content: flex-end; gap: 24px;
+}
+.total-summary-item { text-align: right; }
+.total-summary-label { font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; }
+.total-summary-value { font-size: 15px; font-weight: 800; color: var(--text); }
+.total-summary-value.grand { color: var(--blue); font-size: 17px; }
+
+/* FX rate indicator */
+.fx-toggle-wrap { display: flex; align-items: center; gap: 8px; }
+.fx-toggle {
+  position: relative; width: 36px; height: 20px;
+  background: var(--border); border-radius: 20px; cursor: pointer;
+  transition: background .2s; flex-shrink: 0;
+}
+.fx-toggle.on { background: var(--blue); }
+.fx-toggle::after {
+  content: ''; position: absolute; top: 3px; left: 3px;
+  width: 14px; height: 14px; border-radius: 50%; background: #fff;
+  transition: left .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+.fx-toggle.on::after { left: 19px; }
+.fx-label { font-size: 12px; color: var(--muted); }
+
+/* Footer */
+.edit-modal-footer {
+  padding: 14px 24px; border-top: 1px solid var(--border);
+  background: #fafafa;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap;
+}
+.edit-footer-note { font-size: 11px; color: var(--muted); }
+.edit-footer-actions { display: flex; gap: 8px; }
+.btn-cancel-edit {
+  padding: 8px 18px; background: var(--light); border: 1px solid var(--border);
+  border-radius: 7px; color: var(--muted); font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all .15s;
+}
+.btn-cancel-edit:hover { background: #e2e8f0; }
+.btn-save-edit {
+  padding: 8px 22px; background: var(--blue); border: none;
+  border-radius: 7px; color: #fff; font-size: 13px; font-weight: 700;
+  cursor: pointer; transition: all .15s;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.btn-save-edit:hover { background: #1558a8; box-shadow: 0 3px 10px rgba(29,111,207,.35); }
+.btn-save-edit:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Edit row button */
+.btn-edit-row {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px;
+  background: var(--blue-lt); color: var(--blue);
+  border: 1.5px solid #93c5fd; border-radius: 6px;
+  cursor: pointer; font-size: 13px; transition: all .15s;
+}
+.btn-edit-row:hover { background: var(--blue); color: #fff; border-color: var(--blue); transform: scale(1.08); }
+
+@media (max-width: 640px) {
+  .form-row.cols-3 { grid-template-columns: 1fr 1fr; }
+  .form-row.cols-2 { grid-template-columns: 1fr; }
+  .edit-modal-body { padding: 14px 16px; }
+  .edit-modal-header { padding: 14px 16px 12px; }
+}
 </style>
 </head>
 <body>
@@ -851,6 +1067,284 @@ body {
     </div>
   </div>
 </div>
+
+<!-- ══ Edit Invoice Modal ══ -->
+<div class="edit-modal-overlay" id="edit-overlay" onclick="handleEditOverlayClick(event)">
+  <div class="edit-modal-card">
+
+    <div class="edit-modal-header">
+      <div class="edit-modal-header-left">
+        <div class="edit-modal-eyebrow">✏️ Invoice Editor</div>
+        <div class="edit-modal-title" id="edit-modal-title">Edit Invoice</div>
+        <div class="edit-modal-subtitle" id="edit-modal-subtitle">Modify the details below and save your changes</div>
+      </div>
+      <button class="edit-modal-close" onclick="closeEditModal()">✕</button>
+    </div>
+
+    <div class="edit-modal-body">
+
+      <!-- ① BASIC INFO -->
+      <div class="edit-section">
+        <div class="edit-section-header">
+          <span class="edit-section-icon">📋</span> Basic Information
+        </div>
+        <div class="edit-section-body">
+          <div class="form-row cols-3">
+            <div class="form-group">
+              <label class="form-label">Invoice No.<span class="required">*</span></label>
+              <input type="text" id="ef-invoice-no" class="form-input" placeholder="e.g. INV-2024-001">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Issue Date<span class="required">*</span></label>
+              <input type="date" id="ef-issue-date" class="form-input">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Due Date</label>
+              <input type="date" id="ef-due-date" class="form-input">
+            </div>
+          </div>
+          <div class="form-row cols-2">
+            <div class="form-group">
+              <label class="form-label">Reference / PO No.</label>
+              <input type="text" id="ef-reference" class="form-input" placeholder="Purchase order or external ref">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <div class="form-status-row">
+                <span class="status-opt active-opt" data-val="issued" onclick="selectStatus(this)">Issued</span>
+                <span class="status-opt" data-val="draft" onclick="selectStatus(this)">Draft</span>
+                <span class="status-opt" data-val="paid" onclick="selectStatus(this)">Paid</span>
+                <span class="status-opt" data-val="overdue" onclick="selectStatus(this)">Overdue</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ② CUSTOMER -->
+      <div class="edit-section">
+        <div class="edit-section-header">
+          <span class="edit-section-icon">👤</span> Customer
+        </div>
+        <div class="edit-section-body">
+          <div class="form-row cols-2">
+            <div class="form-group">
+              <label class="form-label">Customer<span class="required">*</span></label>
+              <select id="ef-customer" class="form-select">
+                <option value="">— Select customer —</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Customer Code / Account No.</label>
+              <input type="text" id="ef-customer-code" class="form-input" placeholder="Auto-filled or enter manually">
+            </div>
+          </div>
+          <div class="form-row cols-2">
+            <div class="form-group">
+              <label class="form-label">Billing Address</label>
+              <input type="text" id="ef-billing-address" class="form-input" placeholder="Street, City, Country">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Contact Person</label>
+              <input type="text" id="ef-contact" class="form-input" placeholder="Name or email">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ③ SUPPLIER / DIVISION -->
+      <div class="edit-section">
+        <div class="edit-section-header">
+          <span class="edit-section-icon">🏭</span> Supplier / Division
+        </div>
+        <div class="edit-section-body">
+          <div class="form-row cols-2">
+            <div class="form-group">
+              <label class="form-label">Supplier<span class="required">*</span></label>
+              <select id="ef-supplier" class="form-select">
+                <option value="">— Select supplier —</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Business Division / Branch</label>
+              <select id="ef-division" class="form-select">
+                <option value="">— Select division —</option>
+                <option value="main">Main Branch</option>
+                <option value="north">North Region</option>
+                <option value="south">South Region</option>
+                <option value="east">East Region</option>
+                <option value="west">West Region</option>
+                <option value="online">Online / E-commerce</option>
+                <option value="export">Export Division</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row cols-2">
+            <div class="form-group">
+              <label class="form-label">Sales Rep.</label>
+              <input type="text" id="ef-sales-rep" class="form-input" placeholder="Name of sales representative">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Delivery Terms</label>
+              <select id="ef-delivery-terms" class="form-select">
+                <option value="">— Select —</option>
+                <option value="ex-works">EX Works</option>
+                <option value="fob">FOB</option>
+                <option value="cif">CIF</option>
+                <option value="dap">DAP</option>
+                <option value="ddp">DDP</option>
+                <option value="local">Local Delivery</option>
+                <option value="pickup">Customer Pickup</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ④ LINE ITEMS -->
+      <div class="edit-section">
+        <div class="edit-section-header">
+          <span class="edit-section-icon">📦</span> Line Items
+        </div>
+        <div class="edit-section-body">
+          <div style="overflow-x:auto">
+            <table class="line-items-table" id="line-items-table">
+              <thead>
+                <tr>
+                  <th style="width:35%">Item / Description</th>
+                  <th style="width:10%;text-align:center">Qty</th>
+                  <th style="width:13%;text-align:right">Unit Price</th>
+                  <th style="width:12%;text-align:right">Discount</th>
+                  <th style="width:10%">Tax %</th>
+                  <th style="width:14%;text-align:right">Line Total</th>
+                  <th style="width:6%;text-align:center"></th>
+                </tr>
+              </thead>
+              <tbody id="line-items-body">
+                <!-- rows injected by JS -->
+              </tbody>
+            </table>
+          </div>
+          <button class="btn-add-line" onclick="addLineItem()">＋ Add Line Item</button>
+          <div class="line-totals-summary">
+            <div class="total-summary-item">
+              <div class="total-summary-label">Subtotal</div>
+              <div class="total-summary-value" id="ef-subtotal">0.00</div>
+            </div>
+            <div class="total-summary-item">
+              <div class="total-summary-label">Discount</div>
+              <div class="total-summary-value" id="ef-total-discount">0.00</div>
+            </div>
+            <div class="total-summary-item">
+              <div class="total-summary-label">Tax</div>
+              <div class="total-summary-value" id="ef-total-tax">0.00</div>
+            </div>
+            <div class="total-summary-item">
+              <div class="total-summary-label">Grand Total</div>
+              <div class="total-summary-value grand" id="ef-grand-total">0.00</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ⑤ PAYMENT & CURRENCY -->
+      <div class="edit-section">
+        <div class="edit-section-header">
+          <span class="edit-section-icon">💱</span> Payment & Currency
+        </div>
+        <div class="edit-section-body">
+          <div class="form-row cols-3">
+            <div class="form-group">
+              <label class="form-label">Currency</label>
+              <select id="ef-currency" class="form-select">
+                <option value="KWD">KWD — Kuwaiti Dinar</option>
+                <option value="USD">USD — US Dollar</option>
+                <option value="EUR">EUR — Euro</option>
+                <option value="GBP">GBP — British Pound</option>
+                <option value="AED">AED — UAE Dirham</option>
+                <option value="SAR">SAR — Saudi Riyal</option>
+                <option value="QAR">QAR — Qatari Riyal</option>
+                <option value="BHD">BHD — Bahraini Dinar</option>
+                <option value="OMR">OMR — Omani Rial</option>
+                <option value="EGP">EGP — Egyptian Pound</option>
+                <option value="INR">INR — Indian Rupee</option>
+                <option value="PKR">PKR — Pakistani Rupee</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Exchange Rate</label>
+              <input type="number" id="ef-exchange-rate" class="form-input" placeholder="1.000000" step="0.000001" min="0">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Payment Terms</label>
+              <select id="ef-payment-terms" class="form-select">
+                <option value="">— Select —</option>
+                <option value="immediate">Immediate / Due on Receipt</option>
+                <option value="net7">Net 7 Days</option>
+                <option value="net14">Net 14 Days</option>
+                <option value="net30">Net 30 Days</option>
+                <option value="net45">Net 45 Days</option>
+                <option value="net60">Net 60 Days</option>
+                <option value="net90">Net 90 Days</option>
+                <option value="cod">Cash on Delivery</option>
+                <option value="advance">Advance Payment</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row cols-2">
+            <div class="form-group">
+              <label class="form-label">Payment Method</label>
+              <select id="ef-payment-method" class="form-select">
+                <option value="">— Select —</option>
+                <option value="bank-transfer">Bank Transfer / Wire</option>
+                <option value="cheque">Cheque</option>
+                <option value="cash">Cash</option>
+                <option value="credit-card">Credit Card</option>
+                <option value="lc">Letter of Credit (LC)</option>
+                <option value="installment">Installment Plan</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Bank / Account Ref.</label>
+              <input type="text" id="ef-bank-ref" class="form-input" placeholder="Bank name or account number">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ⑥ NOTES -->
+      <div class="edit-section">
+        <div class="edit-section-header">
+          <span class="edit-section-icon">📝</span> Notes & Attachments
+        </div>
+        <div class="edit-section-body">
+          <div class="form-row cols-1">
+            <div class="form-group">
+              <label class="form-label">Internal Notes</label>
+              <textarea id="ef-notes-internal" class="form-textarea" placeholder="Notes visible to your team only…"></textarea>
+            </div>
+          </div>
+          <div class="form-row cols-1">
+            <div class="form-group">
+              <label class="form-label">Customer-Facing Notes / Footer</label>
+              <textarea id="ef-notes-customer" class="form-textarea" placeholder="Text printed on the invoice for the customer…"></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- end edit-modal-body -->
+
+    <div class="edit-modal-footer">
+      <span class="edit-footer-note">⚠ Changes are applied locally and will be reflected in this session.</span>
+      <div class="edit-footer-actions">
+        <button class="btn-cancel-edit" onclick="closeEditModal()">Cancel</button>
+        <button class="btn-save-edit" id="btn-save-edit" onclick="saveEditModal()">💾 Save Invoice</button>
+      </div>
+    </div>
+
+  </div><!-- end edit-modal-card -->
+</div><!-- end edit-modal-overlay -->
 
 <script>
 /* ══════════════════════════════════════════════
@@ -1524,6 +2018,9 @@ function buildMonthBlockV2(m, key) {
           <span class="pct-txt">${pct.toFixed(2)}%</span>
         </div>
       </td>
+      <td style="text-align:center">
+        <button class="btn-edit-row" title="Edit invoices for Day ${d}" onclick="openEditModal(${m.year},${m.month},${d},${fmtKWD(val).replace(/,/g,'')})">✏</button>
+      </td>
     </tr>`;
   }
   rows += `
@@ -1531,6 +2028,7 @@ function buildMonthBlockV2(m, key) {
     <td colspan="2">📊 Monthly Total</td>
     <td style="text-align:right">${fmtKWD(total)}</td>
     <td><span style="font-size:11px;color:var(--muted)">100.00%</span></td>
+    <td></td>
   </tr>`;
 
   return `
@@ -1566,6 +2064,7 @@ function buildMonthBlockV2(m, key) {
                   <th>Date</th>
                   <th style="text-align:right">Sales Amount</th>
                   <th>% of Month</th>
+                  <th style="text-align:center;width:44px">Edit</th>
                 </tr>
               </thead>
               <tbody>${rows}</tbody>
