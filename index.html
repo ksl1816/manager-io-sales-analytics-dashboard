@@ -1451,8 +1451,7 @@ function assertSafePath(path) {
   }
   if (!(path.startsWith('/api4/sales-invoice-batch') || path.startsWith('/api4/inventory-item'))) {
     throw new Error('Path not in whitelist: only /api4/sales-invoice-batch and /api4/inventory-item are allowed');
-  }
-  if (!/^[A-Za-z0-9._\-\/?=&%+:,]+$/.test(path)) {
+  }  if (!/^[A-Za-z0-9._\-\/?=&%+:,]+$/.test(path)) {
     throw new Error('Path contains disallowed characters');
   }
 }
@@ -2583,37 +2582,95 @@ function renderItemCharts() {
   }
 }
 
-/* Lazily resolve real product names from Manager's inventory-item API, then re-render */
+/* Resolve real product names. Strategy:
+   1. Load the WHOLE inventory list once via /api4/inventory-item-batch (fast, reliable —
+      same mechanism as the invoice loader). Index names by every id/key variant.
+   2. If the batch call fails, fall back to per-item /api4/inventory-item lookups.
+   The full inventory is cached for the session so we only fetch it once. */
+let _inventoryLoaded = false;
+let _itemTriedKeys = new Set();   // keys we've already attempted (resolved or genuinely absent)
+
 async function resolveItemNames(items) {
   if (_itemResolveBusy) return;
   const stats = _itemStatsCache?.stats || [];
-  const keys = [...new Set(stats.map(s => s.itemKey).filter(k => k && !_itemNameCache[k]))];
-  if (!keys.length) return;
+  const need = [...new Set(stats.map(s => s.itemKey).filter(k => k && !_itemNameCache[k] && !_itemTriedKeys.has(k)))];
+  if (!need.length) return;
 
   _itemResolveBusy = true;
   const note = () => document.getElementById('item-name-note');
-  const cap = Math.min(keys.length, 400);
-  if (note()) note().textContent = `Resolving ${cap} product name(s) from Manager…`;
+  if (note()) note().textContent = 'Loading product names from Manager…';
 
-  let idx = 0, active = 0, done = 0;
-  await new Promise(resolve => {
-    const launch = () => {
-      if (idx >= cap) { if (active === 0) resolve(); return; }
-      const key = keys[idx++]; active++;
-      postMessageWithResponse({ type: 'api-request', method: 'GET', path: `/api4/inventory-item?Key=${encodeURIComponent(key)}` })
-        .then(body => {
-          const name = (body && (body.itemName || body.nameWithCode)) || ('Item ' + String(key).slice(0,8));
-          _itemNameCache[key] = { name, code: (body && body.itemCode) || '' };
-        })
-        .catch(() => { _itemNameCache[key] = { name: 'Item ' + String(key).slice(0,8), code: '' }; })
-        .finally(() => { active--; done++; if (note()) note().textContent = `Resolving product names… ${done}/${cap}`; launch(); });
-    };
-    for (let i = 0; i < Math.min(6, cap); i++) launch();
-  });
+  let resolvedAny = false;
+  try {
+    if (!_inventoryLoaded) {
+      const list = await getBatchInventoryItems(n => { if (note()) note().textContent = `Loading product catalog… ${n.toLocaleString()} items`; });
+      indexInventory(list);
+      _inventoryLoaded = true;
+      resolvedAny = true;
+    }
+  } catch (e) {
+    // Batch unavailable — fall back to per-item lookups below
+  }
+
+  // Anything still unresolved → try individual lookups
+  const stillMissing = need.filter(k => !_itemNameCache[k]);
+  if (stillMissing.length) {
+    const cap = Math.min(stillMissing.length, 500);
+    let idx = 0, active = 0, done = 0;
+    await new Promise(resolve => {
+      const launch = () => {
+        if (idx >= cap) { if (active === 0) resolve(); return; }
+        const key = stillMissing[idx++]; active++;
+        postMessageWithResponse({ type: 'api-request', method: 'GET', path: `/api4/inventory-item?Key=${encodeURIComponent(key)}` })
+          .then(body => {
+            const f = (body && body.item) ? body.item : body;
+            const name = (f && (f.itemName || f.nameWithCode)) || null;
+            if (name) { _itemNameCache[key] = { name, code: (f && f.itemCode) || '' }; resolvedAny = true; }
+          })
+          .catch(() => {})
+          .finally(() => { _itemTriedKeys.add(key); active--; done++; if (note()) note().textContent = `Resolving names… ${done}/${cap}`; launch(); });
+      };
+      for (let i = 0; i < Math.min(6, cap); i++) launch();
+    });
+  }
 
   _itemResolveBusy = false;
   if (note()) note().textContent = '';
-  if (_activeTab === 'items') renderWithFilters(); // redraw with proper names
+  if (resolvedAny && _activeTab === 'items') renderWithFilters(); // redraw with proper names
+}
+
+/* Page through the full inventory-item list */
+async function getBatchInventoryItems(onProgress) {
+  const all = [];
+  let nextToken = null, pageNum = 0;
+  do {
+    const path = nextToken
+      ? '/api4/inventory-item-batch?PageSize=99999&next_page_token=' + encodeURIComponent(nextToken)
+      : '/api4/inventory-item-batch?PageSize=99999';
+    const data = await postMessageWithResponse({ type: 'api-request', method: 'GET', path });
+    const page = Array.isArray(data) ? data : (data.items || []);
+    all.push(...page);
+    nextToken = data.next_page_token || data.nextPageToken || data._links?.next?.href || null;
+    pageNum++;
+    if (onProgress) onProgress(all.length);
+    if (pageNum >= 1000) break;
+  } while (nextToken);
+  return all;
+}
+
+/* Index an inventory list into _itemNameCache under every plausible id variant,
+   so whatever uuid the invoice line references will match. */
+function indexInventory(list) {
+  for (const el of list) {
+    const f = el.item ? el.item : el;            // batch elements may wrap fields under .item
+    const name = f.itemName || f.nameWithCode || el.itemName || el.nameWithCode;
+    if (!name) continue;
+    const code = f.itemCode || el.itemCode || '';
+    const entry = { name, code };
+    for (const id of [el.key, el.id, f.key, f.id]) {
+      if (id) _itemNameCache[id] = entry;
+    }
+  }
 }
 
 /* ══════════════════════════════════════════════
