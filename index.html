@@ -216,6 +216,79 @@ body {
 }
 .tab-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; }
 
+/* ── Main view tabs ── */
+.main-tabs {
+  display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;
+}
+.main-tab {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 18px; border: 1px solid var(--border); border-radius: 10px;
+  font-size: 14px; font-weight: 700; cursor: pointer;
+  background: var(--card); color: var(--muted);
+  box-shadow: 0 1px 3px rgba(0,0,0,.05); transition: all .12s;
+}
+.main-tab:hover { border-color: #c7d2e0; }
+.main-tab.active { background: var(--blue); border-color: var(--blue); color: #fff; box-shadow: 0 2px 8px rgba(29,111,207,.25); }
+.main-tab .mt-emoji { font-size: 16px; }
+
+/* ── Itemised Analysis ── */
+.item-note { font-size: 12px; color: var(--muted); margin: -6px 0 14px; min-height: 14px; }
+.item-section {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 16px 18px; margin-bottom: 18px; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.item-section h3 { font-size: 15px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+.item-section .sub { font-size: 12px; color: var(--muted); margin-bottom: 14px; }
+
+.item-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.item-table th {
+  background: var(--light); padding: 8px 10px; text-align: left; font-weight: 600;
+  font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.item-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+.item-table tr:hover td { background: #f8fafc; }
+.item-table td.num, .item-table th.num { text-align: right; }
+.item-rank { font-weight: 700; color: var(--muted); width: 26px; text-align: center; }
+.item-name { font-weight: 600; color: var(--text); }
+.item-code { font-size: 10.5px; color: var(--muted); font-weight: 500; }
+.spark { vertical-align: middle; }
+
+.share-cell { min-width: 140px; }
+.share-wrap { display: flex; align-items: center; gap: 8px; }
+.share-bar-bg { flex: 1; height: 8px; background: var(--light); border-radius: 4px; overflow: hidden; min-width: 60px; }
+.share-bar { height: 100%; background: var(--blue); border-radius: 4px; }
+.share-pct { font-size: 11px; color: var(--muted); white-space: nowrap; min-width: 38px; text-align: right; }
+
+.price-chip { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+.price-up   { background: var(--green-lt); color: var(--green); }
+.price-down { background: var(--red-lt);   color: var(--red); }
+.price-flat { background: var(--light);    color: var(--muted); }
+
+/* Revenue share ribbon */
+.ribbon { display: flex; height: 34px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); margin-bottom: 10px; }
+.ribbon-seg { display: flex; align-items: center; justify-content: center; color: #fff; font-size: 10.5px; font-weight: 700; min-width: 2px; overflow: hidden; white-space: nowrap; }
+.ribbon-legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11.5px; color: var(--muted); }
+.ribbon-legend .lg { display: flex; align-items: center; gap: 5px; }
+.ribbon-legend .dot { width: 10px; height: 10px; border-radius: 3px; }
+
+/* Concentration stat cards */
+.conc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 12px; margin-bottom: 14px; }
+.conc-card { background: var(--light); border-radius: 10px; padding: 12px 14px; }
+.conc-card .cc-val { font-size: 22px; font-weight: 800; color: var(--text); }
+.conc-card .cc-lbl { font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.35; }
+
+/* Movers */
+.movers-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px,1fr)); gap: 16px; }
+.mover-list { list-style: none; }
+.mover-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid #f1f5f9; font-size: 12.5px; }
+.mover-list li:last-child { border-bottom: none; }
+.mover-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mover-sub { font-size: 10.5px; color: var(--muted); }
+.item-chart-box { position: relative; height: 320px; }
+.item-chart-box.tall { height: 380px; }
+.item-empty { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 14px; }
+
 /* ── Comparison Section ── */
 .comparison-block {
   background: var(--card); border: 1px solid var(--border); border-radius: 12px;
@@ -1376,8 +1449,8 @@ function assertSafePath(path) {
   if (/^(javascript|data|vbscript|file|blob):/i.test(path)) {
     throw new Error('Blocked URL scheme in path');
   }
-  if (!path.startsWith('/api4/sales-invoice-batch')) {
-    throw new Error('Path not in whitelist: only /api4/sales-invoice-batch is allowed');
+  if (!(path.startsWith('/api4/sales-invoice-batch') || path.startsWith('/api4/inventory-item'))) {
+    throw new Error('Path not in whitelist: only /api4/sales-invoice-batch and /api4/inventory-item are allowed');
   }
   if (!/^[A-Za-z0-9._\-\/?=&%+:,]+$/.test(path)) {
     throw new Error('Path contains disallowed characters');
@@ -1581,6 +1654,24 @@ async function loadAllRecords() {
 let ALL_ITEMS = [];
 let chartInstances = {}; // track Chart.js instances to destroy on re-render
 
+/* ── Itemised Analysis state ── */
+let _activeTab = 'overview';          // 'overview' | 'items'
+let _lastFilteredItems = [];          // items feeding the itemised tab
+let _itemNameCache = {};              // uuid → { name, code }
+let _itemResolveBusy = false;
+let _itemStatsCache = null;           // computed stats for current itemised render
+let _itemSortKey = 'revenue';         // 'revenue' | 'qty'
+
+function switchMainTab(tab) {
+  if (_activeTab === tab) return;
+  _activeTab = tab;
+  renderWithFilters();
+}
+function setItemSort(key) {
+  _itemSortKey = key;
+  renderWithFilters();
+}
+
 /* ══════════════════════════════════════════════
    UTILITIES
 ══════════════════════════════════════════════ */
@@ -1732,6 +1823,20 @@ function renderWithFilters() {
     html += `<div class="empty-state">📭 No data for selected filters. Try adjusting year or months.</div>`;
     app.innerHTML = html;
     attachFilterListeners(years);
+    return;
+  }
+
+  // ── Main view tabs (Overview ↔ Itemised Analysis) ──
+  html += buildMainTabs();
+
+  if (_activeTab === 'items') {
+    _lastFilteredItems = filtered;
+    html += buildItemisedAnalysis(filtered);
+    app.innerHTML = html;
+    attachFilterListeners(years);
+    // Build item charts after DOM insert, then lazily resolve real product names
+    renderItemCharts();
+    resolveItemNames(filtered);
     return;
   }
 
@@ -2097,6 +2202,421 @@ function buildMonthBlockV2(m, key) {
 }
 
 /* ══════════════════════════════════════════════
+   ITEMISED SALES ANALYSIS  (Items tab)
+══════════════════════════════════════════════ */
+function buildMainTabs() {
+  const tabs = [
+    { id: 'overview', emoji: '📊', label: 'Overview' },
+    { id: 'items',    emoji: '📦', label: 'Itemised Analysis' },
+  ];
+  return `<div class="main-tabs">` + tabs.map(t =>
+    `<div class="main-tab ${_activeTab===t.id?'active':''}" onclick="switchMainTab('${t.id}')">
+       <span class="mt-emoji">${t.emoji}</span>${t.label}</div>`
+  ).join('') + `</div>`;
+}
+
+/* Foreign → base currency conversion for a single value (mirrors invoiceTotal) */
+function fxConvert(inv, v) {
+  const rate = Number(inv.item?.exchangeRate) || 0;
+  if (rate > 0 && rate !== 1) return inv.item?.exchangeRateIsInverse ? (v / rate) : (v * rate);
+  return v;
+}
+function lineItemKey(ln) { return ln.item || ln.inventoryItem || ln.itemKey || null; }
+function lineDesc(ln)    { return String(ln.lineDescription || ln.description || ln.itemName || '').trim(); }
+
+/* Display label / code for an item stat, using resolved inventory names when available */
+function itemLabel(s) {
+  if (s.itemKey && _itemNameCache[s.itemKey]) return _itemNameCache[s.itemKey].name;
+  return s.fallbackLabel;
+}
+function itemCode(s) {
+  return (s.itemKey && _itemNameCache[s.itemKey]?.code) || '';
+}
+
+/* Build per-item statistics from filtered invoices */
+function computeItemStats(items) {
+  const map = {};
+  let totalRevenue = 0, totalQty = 0;
+  const monthSet = new Set();
+
+  for (const inv of items) {
+    const lines = inv.item?.lines || [];
+    if (!lines.length) continue;
+    const d  = parseDate(inv.item?.issueDate);
+    const mk = d ? `${d.year}-${String(d.month).padStart(2,'0')}` : null;
+    if (mk) monthSet.add(mk);
+    const invId = inv.item?.key || inv.key || inv.item?.reference || JSON.stringify(inv.item?.issueDate) + '|' + Math.random();
+
+    for (const ln of lines) {
+      const qty   = Number(ln.qty) || 0;
+      const price = Number(ln.salesUnitPrice) || 0;
+      let disc    = Number(ln.discountAmount) || 0;
+      if (!disc && ln.discountPercentage) disc = qty * price * (Number(ln.discountPercentage) / 100);
+      const rev   = fxConvert(inv, qty * price - disc);
+      if (!qty && !rev) continue; // skip blank lines
+
+      const ik   = lineItemKey(ln);
+      const desc = lineDesc(ln);
+      const key  = ik ? ('id:' + ik) : (desc ? ('d:' + desc.toLowerCase()) : 'unspecified');
+
+      let s = map[key];
+      if (!s) {
+        s = map[key] = {
+          key, itemKey: ik || null,
+          fallbackLabel: desc || (ik ? 'Item ' + String(ik).slice(0, 8) : 'Unspecified / non-item line'),
+          revenue: 0, qty: 0, invoices: new Set(), monthly: {}, prices: []
+        };
+      }
+      s.revenue += rev;
+      s.qty     += qty;
+      s.invoices.add(invId);
+      if (mk) s.monthly[mk] = (s.monthly[mk] || 0) + rev;
+      if (qty > 0) s.prices.push({ mk, unit: rev / qty, qty });
+      totalRevenue += rev;
+      totalQty     += qty;
+    }
+  }
+
+  const monthsSorted = [...monthSet].sort();
+  const stats = Object.values(map).map(s => {
+    s.invoiceCount = s.invoices.size;
+    s.avgPrice = s.qty ? s.revenue / s.qty : 0;
+
+    // Price change: weighted avg unit price in earliest vs latest active month
+    const byMonth = {};
+    for (const p of s.prices) {
+      if (!p.mk) continue;
+      const b = byMonth[p.mk] || (byMonth[p.mk] = { rev: 0, qty: 0 });
+      b.rev += p.unit * p.qty; b.qty += p.qty;
+    }
+    const pm = Object.keys(byMonth).sort();
+    if (pm.length >= 2) {
+      const fAvg = byMonth[pm[0]].qty ? byMonth[pm[0]].rev / byMonth[pm[0]].qty : 0;
+      const lAvg = byMonth[pm[pm.length-1]].qty ? byMonth[pm[pm.length-1]].rev / byMonth[pm[pm.length-1]].qty : 0;
+      s.priceFirst = fAvg; s.priceLast = lAvg;
+      s.priceFirstMonth = pm[0]; s.priceLastMonth = pm[pm.length-1];
+      s.priceChangePct = fAvg ? ((lAvg - fAvg) / fAvg * 100) : null;
+      s.priceMonths = pm.length;
+    } else {
+      s.priceChangePct = null;
+    }
+    return s;
+  });
+
+  return { stats, totalRevenue, totalQty, monthsSorted };
+}
+
+/* Tiny inline SVG sparkline */
+function sparkline(values, color) {
+  const w = 88, h = 22;
+  if (!values || !values.length) return '';
+  const max = Math.max(...values), min = Math.min(...values);
+  const range = (max - min) || 1;
+  const stepX = values.length > 1 ? w / (values.length - 1) : w;
+  const pts = values.map((v,i) => `${(i*stepX).toFixed(1)},${(h-2-((v-min)/range)*(h-4)).toFixed(1)}`).join(' ');
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" class="spark"><polyline points="${pts}" fill="none" stroke="${color||'#1d6fcf'}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+}
+
+function priceBadge(s) {
+  if (s.priceChangePct === null || s.priceChangePct === undefined) return `<span class="price-chip price-flat">—</span>`;
+  const p = s.priceChangePct;
+  if (Math.abs(p) < 1) return `<span class="price-chip price-flat" title="${fmtKWD(s.priceFirst)} → ${fmtKWD(s.priceLast)}">≈ stable</span>`;
+  const cls = p > 0 ? 'price-up' : 'price-down';
+  const arr = p > 0 ? '▲' : '▼';
+  return `<span class="price-chip ${cls}" title="${fmtKWD(s.priceFirst)} (${s.priceFirstMonth}) → ${fmtKWD(s.priceLast)} (${s.priceLastMonth})">${arr} ${Math.abs(p).toFixed(1)}%</span>`;
+}
+
+function buildItemisedAnalysis(items) {
+  const res = computeItemStats(items);
+  _itemStatsCache = res;
+  const { stats, totalRevenue, totalQty, monthsSorted } = res;
+
+  if (!stats.length || (stats.length === 1 && stats[0].key === 'unspecified')) {
+    return `<div class="item-empty">📦 No itemised line data found for this selection.<br>
+      <span style="font-size:12.5px">These invoices may not contain product/service line items, or fall outside the current filter.</span></div>`;
+  }
+
+  const sortKey = _itemSortKey;
+  const sorted = [...stats].sort((a,b) => (b[sortKey]||0) - (a[sortKey]||0));
+  const topItem = sorted[0];
+  const topShare = totalRevenue ? (topItem.revenue / totalRevenue * 100) : 0;
+
+  // ── Summary cards ──
+  let html = `<div class="item-note" id="item-name-note"></div>`;
+  html += `<div class="summary-grid">
+    <div class="summary-card blue"><div class="sc-label">Distinct Items</div><div class="sc-value">${stats.length}</div><div class="sc-sub">products / services sold</div></div>
+    <div class="summary-card green"><div class="sc-label">Line Revenue</div><div class="sc-value">${fmtKWD(totalRevenue)}</div><div class="sc-sub">sum of all line items</div></div>
+    <div class="summary-card amber"><div class="sc-label">Total Units</div><div class="sc-value">${fmtKWD(totalQty)}</div><div class="sc-sub">quantity sold</div></div>
+    <div class="summary-card purple"><div class="sc-label">Top Item</div><div class="sc-value" style="font-size:15px">${escHTML(itemLabel(topItem))}</div><div class="sc-sub">${topShare.toFixed(1)}% of revenue</div></div>
+  </div>`;
+
+  // ── Top items: chart + sortable table ──
+  html += `<div class="item-section">
+    <h3>🏆 Top-Selling Items</h3>
+    <div class="sub">Ranked by ${sortKey === 'revenue' ? 'revenue' : 'units sold'}. Sparkline shows each item's revenue trend across the selected period.</div>
+    <div class="tab-bar">
+      <button class="tab-btn ${sortKey==='revenue'?'active':''}" onclick="setItemSort('revenue')">By Revenue</button>
+      <button class="tab-btn ${sortKey==='qty'?'active':''}" onclick="setItemSort('qty')">By Units</button>
+    </div>
+    <div class="item-chart-box"><canvas id="chart_item_top"></canvas></div>`;
+
+  // Table (top 25)
+  const maxVal = Math.max(...sorted.map(s => s[sortKey] || 0), 1);
+  const rows = sorted.slice(0, 25).map((s, i) => {
+    const trend = monthsSorted.map(mk => s.monthly[mk] || 0);
+    const share = totalRevenue ? (s.revenue / totalRevenue * 100) : 0;
+    const barVal = (s[sortKey] || 0) / maxVal * 100;
+    const code = itemCode(s);
+    return `<tr>
+      <td class="item-rank">${i+1}</td>
+      <td><div class="item-name">${escHTML(itemLabel(s))}</div>${code ? `<div class="item-code">${escHTML(code)}</div>` : ''}</td>
+      <td>${sparkline(trend, MONTH_COLORS[i % MONTH_COLORS.length])}</td>
+      <td class="num">${fmtKWD(s.revenue)}</td>
+      <td class="num">${fmtKWD(s.qty)}</td>
+      <td class="num">${s.invoiceCount}</td>
+      <td class="num">${fmtKWD(s.avgPrice)}</td>
+      <td>${priceBadge(s)}</td>
+      <td class="share-cell"><div class="share-wrap">
+        <div class="share-bar-bg"><div class="share-bar" style="width:${barVal.toFixed(1)}%"></div></div>
+        <span class="share-pct">${share.toFixed(1)}%</span>
+      </div></td>
+    </tr>`;
+  }).join('');
+
+  html += `<div style="overflow-x:auto;margin-top:14px"><table class="item-table">
+    <thead><tr>
+      <th>#</th><th>Item</th><th>Trend</th>
+      <th class="num">Revenue</th><th class="num">Units</th><th class="num">Invoices</th>
+      <th class="num">Avg Price</th><th>Price Δ</th><th>Share</th>
+    </tr></thead><tbody>${rows}</tbody></table>
+    ${sorted.length > 25 ? `<div class="sub" style="margin-top:8px">Showing top 25 of ${sorted.length} items.</div>` : ''}
+  </div></div>`;
+
+  // ── Item performance across time ──
+  if (monthsSorted.length >= 2) {
+    html += `<div class="item-section">
+      <h3>📈 Item Performance Across Time</h3>
+      <div class="sub">Monthly revenue trajectory for the top 5 items — spot which products are accelerating or fading.</div>
+      <div class="item-chart-box tall"><canvas id="chart_item_trend"></canvas></div>
+    </div>`;
+  }
+
+  // ── Revenue concentration ──
+  html += buildConcentrationSection(sorted, totalRevenue);
+
+  // ── Price movers ──
+  html += buildPriceMovers(stats);
+
+  return html;
+}
+
+/* Revenue concentration: Pareto, HHI, share ribbon */
+function buildConcentrationSection(sortedByRev, totalRevenue) {
+  const byRev = [...sortedByRev].sort((a,b) => b.revenue - a.revenue);
+  const n = byRev.length;
+
+  // Items needed to reach 80% of revenue
+  let cum = 0, itemsTo80 = 0;
+  for (const s of byRev) { cum += s.revenue; itemsTo80++; if (cum >= totalRevenue * 0.8) break; }
+  const pctItemsTo80 = n ? (itemsTo80 / n * 100) : 0;
+
+  // Share of top 20% of items
+  const top20Count = Math.max(1, Math.round(n * 0.2));
+  const top20Rev = byRev.slice(0, top20Count).reduce((a,s) => a + s.revenue, 0);
+  const top20Share = totalRevenue ? (top20Rev / totalRevenue * 100) : 0;
+
+  // Herfindahl–Hirschman Index (0–10000); higher = more concentrated
+  const hhi = totalRevenue ? byRev.reduce((a,s) => a + Math.pow(s.revenue/totalRevenue*100, 2), 0) : 0;
+  const conc = hhi > 2500 ? 'Highly concentrated' : hhi > 1500 ? 'Moderately concentrated' : 'Well diversified';
+
+  // Revenue ribbon: top 8 + others
+  const ribbonItems = byRev.slice(0, 8);
+  const othersRev = byRev.slice(8).reduce((a,s) => a + s.revenue, 0);
+  let segs = ribbonItems.map((s,i) => {
+    const pct = totalRevenue ? s.revenue/totalRevenue*100 : 0;
+    const col = MONTH_COLORS[i % MONTH_COLORS.length];
+    return `<div class="ribbon-seg" style="width:${pct}%;background:${col}" title="${escHTML(itemLabel(s))}: ${fmtKWD(s.revenue)} (${pct.toFixed(1)}%)">${pct >= 7 ? pct.toFixed(0)+'%' : ''}</div>`;
+  }).join('');
+  if (othersRev > 0) {
+    const pct = totalRevenue ? othersRev/totalRevenue*100 : 0;
+    segs += `<div class="ribbon-seg" style="width:${pct}%;background:#94a3b8" title="Other items: ${fmtKWD(othersRev)} (${pct.toFixed(1)}%)">${pct >= 7 ? 'Other' : ''}</div>`;
+  }
+  const legend = ribbonItems.map((s,i) =>
+    `<span class="lg"><span class="dot" style="background:${MONTH_COLORS[i%MONTH_COLORS.length]}"></span>${escHTML(itemLabel(s))}</span>`
+  ).join('') + (othersRev > 0 ? `<span class="lg"><span class="dot" style="background:#94a3b8"></span>Other (${byRev.length-8})</span>` : '');
+
+  return `<div class="item-section">
+    <h3>🎯 Revenue Concentration</h3>
+    <div class="sub">How dependent is the business on a handful of items? (Pareto / 80-20 analysis)</div>
+    <div class="conc-grid">
+      <div class="conc-card"><div class="cc-val">${itemsTo80}</div><div class="cc-lbl">item(s) — just ${pctItemsTo80.toFixed(0)}% of the catalog — generate <strong>80%</strong> of revenue</div></div>
+      <div class="conc-card"><div class="cc-val">${top20Share.toFixed(0)}%</div><div class="cc-lbl">of revenue comes from the top 20% of items (${top20Count})</div></div>
+      <div class="conc-card"><div class="cc-val">${Math.round(hhi).toLocaleString()}</div><div class="cc-lbl">concentration index (HHI) — <strong>${conc}</strong></div></div>
+    </div>
+    <div class="ribbon">${segs}</div>
+    <div class="ribbon-legend">${legend}</div>
+    <div class="item-chart-box" style="margin-top:16px"><canvas id="chart_item_pareto"></canvas></div>
+  </div>`;
+}
+
+/* Price change movers — rising & falling */
+function buildPriceMovers(stats) {
+  const withChange = stats.filter(s => s.priceChangePct !== null && s.priceChangePct !== undefined && Math.abs(s.priceChangePct) >= 1);
+  if (!withChange.length) {
+    return `<div class="item-section">
+      <h3>💲 Price Change Detection</h3>
+      <div class="sub">Compares each item's average unit price in its first vs. latest active month.</div>
+      <div class="sub">Not enough multi-month price history in this selection to detect meaningful changes.</div>
+    </div>`;
+  }
+  const risers  = [...withChange].sort((a,b) => b.priceChangePct - a.priceChangePct).filter(s => s.priceChangePct > 0).slice(0, 8);
+  const fallers = [...withChange].sort((a,b) => a.priceChangePct - b.priceChangePct).filter(s => s.priceChangePct < 0).slice(0, 8);
+
+  const row = s => `<li>
+    <div style="min-width:0"><div class="mover-name">${escHTML(itemLabel(s))}</div>
+      <div class="mover-sub">${fmtKWD(s.priceFirst)} → ${fmtKWD(s.priceLast)} · ${s.priceFirstMonth}→${s.priceLastMonth}</div></div>
+    ${priceBadge(s)}
+  </li>`;
+
+  return `<div class="item-section">
+    <h3>💲 Price Change Detection</h3>
+    <div class="sub">Items whose average selling price shifted between their first and most recent active month in this selection.</div>
+    <div class="movers-grid">
+      <div><div style="font-weight:700;color:var(--green);margin-bottom:6px">▲ Price Increases</div>
+        <ul class="mover-list">${risers.length ? risers.map(row).join('') : '<li class="mover-sub">None detected</li>'}</ul></div>
+      <div><div style="font-weight:700;color:var(--red);margin-bottom:6px">▼ Price Decreases</div>
+        <ul class="mover-list">${fallers.length ? fallers.map(row).join('') : '<li class="mover-sub">None detected</li>'}</ul></div>
+    </div>
+  </div>`;
+}
+
+/* Build the three Chart.js charts for the items tab (after DOM insert) */
+function renderItemCharts() {
+  const res = _itemStatsCache;
+  if (!res) return;
+  const { stats, monthsSorted, totalRevenue } = res;
+  const sortKey = _itemSortKey;
+  const sorted = [...stats].sort((a,b) => (b[sortKey]||0) - (a[sortKey]||0));
+
+  // 1) Top items horizontal bar
+  const topBar = sorted.slice(0, 12);
+  const barCanvas = document.getElementById('chart_item_top');
+  if (barCanvas) {
+    chartInstances['chart_item_top'] = new Chart(barCanvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: topBar.map(s => itemLabel(s)),
+        datasets: [{
+          label: sortKey === 'revenue' ? 'Revenue' : 'Units',
+          data: topBar.map(s => s[sortKey] || 0),
+          backgroundColor: topBar.map((_,i) => hexToRgba(MONTH_COLORS[i % MONTH_COLORS.length], 0.85)),
+          borderRadius: 4,
+        }]
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false },
+          tooltip: { callbacks: { label: ctx => ` ${sortKey==='revenue'?fmtKWD(ctx.raw):fmtKWD(ctx.raw)+' units'}` } } },
+        scales: {
+          x: { grid: { color: '#f1f5f9' }, ticks: { callback: v => fmtShort(v) } },
+          y: { grid: { display: false }, ticks: { font: { size: 11 }, callback: function(v){ const l=this.getLabelForValue(v); return l.length>26?l.slice(0,25)+'…':l; } } }
+        }
+      }
+    });
+  }
+
+  // 2) Top-5 monthly trend (multi-line)
+  const trendCanvas = document.getElementById('chart_item_trend');
+  if (trendCanvas && monthsSorted.length >= 2) {
+    const top5 = [...stats].sort((a,b) => b.revenue - a.revenue).slice(0, 5);
+    chartInstances['chart_item_trend'] = new Chart(trendCanvas.getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: monthsSorted.map(mk => { const [y,m] = mk.split('-'); return `${MONTH_ABBR[parseInt(m)]} ${y}`; }),
+        datasets: top5.map((s,i) => ({
+          label: itemLabel(s),
+          data: monthsSorted.map(mk => s.monthly[mk] || 0),
+          borderColor: MONTH_COLORS[i % MONTH_COLORS.length],
+          backgroundColor: hexToRgba(MONTH_COLORS[i % MONTH_COLORS.length], 0.1),
+          borderWidth: 2.4, tension: 0.35, pointRadius: 3, pointHoverRadius: 5, fill: false,
+        }))
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmtKWD(ctx.raw)}` } } },
+        scales: {
+          x: { grid: { color: '#f1f5f9' }, ticks: { maxRotation: 45, font: { size: 10 } } },
+          y: { grid: { color: '#f1f5f9' }, ticks: { callback: v => fmtShort(v) }, beginAtZero: true }
+        }
+      }
+    });
+  }
+
+  // 3) Pareto chart (bars desc + cumulative % line)
+  const paretoCanvas = document.getElementById('chart_item_pareto');
+  if (paretoCanvas) {
+    const byRev = [...stats].sort((a,b) => b.revenue - a.revenue).slice(0, 15);
+    let run = 0;
+    const cumPct = byRev.map(s => { run += s.revenue; return totalRevenue ? (run/totalRevenue*100) : 0; });
+    chartInstances['chart_item_pareto'] = new Chart(paretoCanvas.getContext('2d'), {
+      data: {
+        labels: byRev.map(s => itemLabel(s)),
+        datasets: [
+          { type: 'bar', label: 'Revenue', data: byRev.map(s => s.revenue), backgroundColor: hexToRgba('#1d6fcf', 0.8), borderRadius: 3, yAxisID: 'y', order: 2 },
+          { type: 'line', label: 'Cumulative %', data: cumPct, borderColor: '#dc2626', backgroundColor: '#dc2626', borderWidth: 2, tension: 0.3, pointRadius: 3, yAxisID: 'y1', order: 1 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } },
+          tooltip: { callbacks: { label: ctx => ctx.dataset.yAxisID === 'y1' ? ` Cumulative: ${ctx.raw.toFixed(1)}%` : ` Revenue: ${fmtKWD(ctx.raw)}` } } },
+        scales: {
+          x: { grid: { display: false }, ticks: { maxRotation: 50, font: { size: 9 }, callback: function(v){ const l=this.getLabelForValue(v); return l.length>14?l.slice(0,13)+'…':l; } } },
+          y:  { position: 'left',  grid: { color: '#f1f5f9' }, ticks: { callback: v => fmtShort(v) }, beginAtZero: true },
+          y1: { position: 'right', grid: { display: false }, min: 0, max: 100, ticks: { callback: v => v + '%' } }
+        }
+      }
+    });
+  }
+}
+
+/* Lazily resolve real product names from Manager's inventory-item API, then re-render */
+async function resolveItemNames(items) {
+  if (_itemResolveBusy) return;
+  const stats = _itemStatsCache?.stats || [];
+  const keys = [...new Set(stats.map(s => s.itemKey).filter(k => k && !_itemNameCache[k]))];
+  if (!keys.length) return;
+
+  _itemResolveBusy = true;
+  const note = () => document.getElementById('item-name-note');
+  const cap = Math.min(keys.length, 400);
+  if (note()) note().textContent = `Resolving ${cap} product name(s) from Manager…`;
+
+  let idx = 0, active = 0, done = 0;
+  await new Promise(resolve => {
+    const launch = () => {
+      if (idx >= cap) { if (active === 0) resolve(); return; }
+      const key = keys[idx++]; active++;
+      postMessageWithResponse({ type: 'api-request', method: 'GET', path: `/api4/inventory-item?Key=${encodeURIComponent(key)}` })
+        .then(body => {
+          const name = (body && (body.itemName || body.nameWithCode)) || ('Item ' + String(key).slice(0,8));
+          _itemNameCache[key] = { name, code: (body && body.itemCode) || '' };
+        })
+        .catch(() => { _itemNameCache[key] = { name: 'Item ' + String(key).slice(0,8), code: '' }; })
+        .finally(() => { active--; done++; if (note()) note().textContent = `Resolving product names… ${done}/${cap}`; launch(); });
+    };
+    for (let i = 0; i < Math.min(6, cap); i++) launch();
+  });
+
+  _itemResolveBusy = false;
+  if (note()) note().textContent = '';
+  if (_activeTab === 'items') renderWithFilters(); // redraw with proper names
+}
+
+/* ══════════════════════════════════════════════
    COMING SOON SECTION
 ══════════════════════════════════════════════ */
 function buildComingSoon() {
@@ -2104,19 +2624,6 @@ function buildComingSoon() {
   <div class="coming-soon-section">
     <div class="section-header">🚀 Coming Soon <span class="badge" style="background:var(--amber-lt);color:var(--amber)">Planned Features</span></div>
     <div class="coming-soon-grid">
-
-      <div class="coming-soon-card">
-        <div class="cs-icon">📦</div>
-        <div class="cs-title">Itemised Sales Analysis</div>
-        <div class="cs-desc">Break down revenue by individual product or service items across all invoices.</div>
-        <ul class="cs-features">
-          <li>Top-selling items by revenue & volume</li>
-          <li>Item performance across time periods</li>
-          <li>Revenue concentration analysis</li>
-          <li>Price change detection per item</li>
-        </ul>
-         <span class="cs-badge planned">⏳ Planned</span>
-      </div>
 
       <div class="coming-soon-card">
         <div class="cs-icon">👥</div>
