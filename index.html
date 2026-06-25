@@ -1800,12 +1800,18 @@ function toggleMonthCollapse(uid) {
 }
 
 function filterItems(items, year, selMonths, startDate, endDate) {
+  // A custom From/To range takes precedence over the single-year dropdown so
+  // that ranges can legitimately span multiple years (e.g. May 2024 → May 2025).
+  // The year filter is also skipped when "All Years" ("all") is selected.
+  const hasRange   = !!(startDate || endDate);
+  const yearActive = year && year !== 'all' && !hasRange;
+
   return items.filter(inv => {
     const d = parseDate(inv.item?.issueDate);
     if (!d) return false;
 
-    // Year filter
-    if (year && d.year !== parseInt(year)) return false;
+    // Year filter (ignored when a date range is set or "All Years" is selected)
+    if (yearActive && d.year !== parseInt(year)) return false;
 
     // Month filter (empty = all)
     if (selMonths.length && !selMonths.includes(d.month)) return false;
@@ -1828,12 +1834,20 @@ function filterItems(items, year, selMonths, startDate, endDate) {
    FILTER PANEL HTML
 ══════════════════════════════════════════════ */
 function buildFilterPanel(years, selYear, selMonths, startDate, endDate) {
-  const yearOpts = years.map(y => `<option value="${y}" ${String(y)===selYear?'selected':''}>${y}</option>`).join('');
+  const allSel = (selYear === 'all') ? 'selected' : '';
+  const yearOpts = `<option value="all" ${allSel}>All Years</option>` +
+    years.map(y => `<option value="${y}" ${String(y)===selYear?'selected':''}>${y}</option>`).join('');
 
   const chipHtml = MONTHS.map((m,i) => {
     const active = selMonths.includes(i) ? 'active' : '';
     return `<span class="month-chip ${active}" data-month="${i}" onclick="toggleMonth(this)">${MONTH_ABBR[i]}</span>`;
   }).join('');
+
+  // When a date range is active, the year dropdown is ignored (range wins)
+  const rangeActive = !!(startDate || endDate);
+  const rangeHint = rangeActive
+    ? `<div style="flex-basis:100%;font-size:11.5px;color:var(--muted);margin-top:2px;">ℹ️ A From/To date range is active and spans the selected dates — the <strong>Year</strong> filter is ignored while a range is set. Clear the dates to filter by a single year.</div>`
+    : '';
 
   return `
   <div class="filter-panel">
@@ -1855,6 +1869,7 @@ function buildFilterPanel(years, selYear, selMonths, startDate, endDate) {
     </div>
     <button class="apply-btn" onclick="renderWithFilters()">Apply Filters</button>
     <button class="clear-btn" onclick="clearFilters()">Clear</button>
+    ${rangeHint}
   </div>`;
 }
 
