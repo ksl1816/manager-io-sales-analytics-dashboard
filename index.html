@@ -205,6 +205,47 @@ body {
 }
 .canvas-container { position: relative; height: 220px; }
 
+/* ── Export Bar ── */
+.export-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 14px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.06);
+}
+.export-label { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.export-label em { font-style: normal; color: var(--text); }
+.exp-btn {
+  padding: 7px 14px; border: none; border-radius: 7px; cursor: pointer;
+  font-size: 13px; font-weight: 700; color: #fff; white-space: nowrap;
+}
+.exp-btn:hover { opacity: .88; }
+.exp-pdf   { background: var(--red); }
+.exp-excel { background: var(--green); }
+
+/* ── Print / PDF stylesheet ── */
+@media print {
+  @page { size: A4; margin: 12mm; }
+  body { background: #fff !important; padding: 0 !important; font-size: 12px; }
+  /* Force background colors & charts to print */
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  /* Hide interactive chrome */
+  .no-print, .ctrl-bar, .filter-panel, .export-bar, .fx-notice,
+  .load-btn, .apply-btn, .clear-btn, .exp-btn, .tab-bar,
+  button { display: none !important; }
+  /* Print-only title banner */
+  .print-header { display: block !important; }
+  /* Keep blocks from splitting awkwardly across pages */
+  .summary-card, .month-block, .chart-wrap, .canvas-container, table tr {
+    break-inside: avoid; page-break-inside: avoid;
+  }
+  .section-header { break-after: avoid; page-break-after: avoid; }
+  .summary-grid { gap: 8px; }
+  .month-block { box-shadow: none; border: 1px solid #cbd5e1; }
+  .canvas-container { height: 200px; }
+}
+.print-header { display: none; }
+.print-header h1 { font-size: 18px; margin: 0 0 2px; }
+.print-header .ph-sub { font-size: 11px; color: var(--muted); }
+
 /* ── Table/Chart toggle ── */
 .tab-bar {
   display: flex; gap: 6px; margin-bottom: 12px;
@@ -1581,6 +1622,9 @@ async function loadAllRecords() {
 let ALL_ITEMS = [];
 let chartInstances = {}; // track Chart.js instances to destroy on re-render
 
+// Snapshot of the currently-filtered view, used by Excel / PDF export
+let _exportCtx = { grouped: null, monthKeys: [], label: '' };
+
 /* ══════════════════════════════════════════════
    UTILITIES
 ══════════════════════════════════════════════ */
@@ -1728,12 +1772,31 @@ function renderWithFilters() {
   // ── Filter Panel ──
   html += buildFilterPanel(years, selYear, selMonths, startDate, endDate);
 
+  // Snapshot current view for export + build the export label
+  let exportLabel;
+  if (startDate || endDate) {
+    exportLabel = `${startDate || '…'} to ${endDate || '…'}`;
+  } else if (selYear === 'all') {
+    exportLabel = 'All Years';
+  } else {
+    exportLabel = selYear;
+  }
+  if (selMonths.length) exportLabel += ' · ' + selMonths.map(i => MONTH_ABBR[i]).join(', ');
+  _exportCtx = { grouped, monthKeys, label: exportLabel };
+
+  // Print-only header banner (hidden on screen, shown when printing to PDF)
+  html += `<div class="print-header"><h1>Sales Analysis</h1>
+    <div class="ph-sub">View: ${exportLabel} · Generated ${new Date().toLocaleString()}</div></div>`;
+
   if (!monthKeys.length) {
     html += `<div class="empty-state">📭 No data for selected filters. Try adjusting year or months.</div>`;
     app.innerHTML = html;
     attachFilterListeners(years);
     return;
   }
+
+  // ── Export toolbar ──
+  html += buildExportToolbar(exportLabel);
 
   // ── Overall summary cards ──
   html += buildOverallSummary(grouped, monthKeys);
@@ -1876,6 +1939,107 @@ function buildFilterPanel(years, selYear, selMonths, startDate, endDate) {
 function toggleMonth(el) {
   el.classList.toggle('active');
 }
+/* ══════════════════════════════════════════════
+   EXPORT TOOLBAR + ENGINES
+══════════════════════════════════════════════ */
+function buildExportToolbar(label) {
+  return `
+  <div class="export-bar no-print">
+    <span class="export-label">Export current view <em>(${label})</em>:</span>
+    <button class="exp-btn exp-pdf"   onclick="printPDF()">🖨 Print / Save as PDF</button>
+    <button class="exp-btn exp-excel" onclick="exportExcel()">📊 Export to Excel</button>
+  </div>`;
+}
+
+function printPDF() { window.print(); }
+
+/* Build a colored, Excel-friendly sheet from the current view and download it.
+   Uses an Excel-compatible HTML blob — keeps colors, bold totals and currency
+   formatting, and needs no external library (works under the page's CSP). */
+function exportExcel() {
+  const { grouped, monthKeys, label } = _exportCtx;
+  if (!grouped || !monthKeys.length) { alert('Nothing to export yet — load and filter data first.'); return; }
+
+  let grandTotal = 0, grandDays = 0, bestKey = null, bestTotal = 0;
+  const rows = monthKeys.map(key => {
+    const m = grouped[key];
+    const total = Object.values(m.days).reduce((a,b)=>a+b,0);
+    const days  = Object.keys(m.days).length;
+    grandTotal += total; grandDays += days;
+    if (total > bestTotal) { bestTotal = total; bestKey = key; }
+    return { name: `${MONTHS[m.month]} ${m.year}`, total, days, avg: days ? total/days : 0 };
+  });
+  rows.forEach(r => r.pct = grandTotal ? (r.total/grandTotal*100) : 0);
+  const avgPerMonth = monthKeys.length ? grandTotal/monthKeys.length : 0;
+  const avgPerDay   = grandDays ? grandTotal/grandDays : 0;
+  const bestName = bestKey ? `${MONTHS[grouped[bestKey].month]} ${grouped[bestKey].year}` : '—';
+
+  const num = v => (Number(v)||0).toFixed(2);
+  const moneyStyle = 'mso-number-format:"#,##0.00";';
+  const headFill = 'background:#1d6fcf;color:#ffffff;font-weight:bold;border:1px solid #1557a0;';
+  const cell     = 'border:1px solid #d9e2ec;padding:4px 8px;';
+  const totFill  = 'background:#dbeafe;font-weight:bold;border:1px solid #93c5fd;';
+
+  const monthRows = rows.map((r,i) => {
+    const zebra = i % 2 ? 'background:#f8fafc;' : '';
+    return `<tr>
+      <td style="${cell}${zebra}">${r.name}</td>
+      <td style="${cell}${zebra}${moneyStyle}" align="right">${num(r.total)}</td>
+      <td style="${cell}${zebra}" align="right">${r.days}</td>
+      <td style="${cell}${zebra}${moneyStyle}" align="right">${num(r.avg)}</td>
+      <td style="${cell}${zebra}" align="right">${r.pct.toFixed(1)}%</td>
+    </tr>`;
+  }).join('');
+
+  const html = `
+  <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+  <head><meta charset="utf-8"></head>
+  <body>
+    <table style="border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:11pt;">
+      <tr><td colspan="5" style="background:#0f172a;color:#fff;font-size:16pt;font-weight:bold;padding:8px 10px;">Sales Analysis</td></tr>
+      <tr><td colspan="5" style="color:#475569;padding:4px 10px;">View: ${label} &nbsp;&middot;&nbsp; Generated ${new Date().toLocaleString()}</td></tr>
+      <tr><td colspan="5" style="height:8px;"></td></tr>
+
+      <tr><td colspan="5" style="background:#1e293b;color:#fff;font-weight:bold;padding:5px 10px;">SUMMARY</td></tr>
+      <tr><td style="${cell}background:#f1f5f9;font-weight:bold;">Grand Total</td><td style="${cell}${moneyStyle}" align="right">${num(grandTotal)}</td>
+          <td style="${cell}background:#f1f5f9;font-weight:bold;">Months</td><td style="${cell}" align="right">${monthKeys.length}</td><td style="${cell}"></td></tr>
+      <tr><td style="${cell}background:#f1f5f9;font-weight:bold;">Avg / Month</td><td style="${cell}${moneyStyle}" align="right">${num(avgPerMonth)}</td>
+          <td style="${cell}background:#f1f5f9;font-weight:bold;">Active Days</td><td style="${cell}" align="right">${grandDays}</td><td style="${cell}"></td></tr>
+      <tr><td style="${cell}background:#f1f5f9;font-weight:bold;">Avg / Day</td><td style="${cell}${moneyStyle}" align="right">${num(avgPerDay)}</td>
+          <td style="${cell}background:#f1f5f9;font-weight:bold;">Best Month</td><td style="${cell}" colspan="2">${bestName} (${num(bestTotal)})</td></tr>
+      <tr><td colspan="5" style="height:8px;"></td></tr>
+
+      <tr><td colspan="5" style="background:#1e293b;color:#fff;font-weight:bold;padding:5px 10px;">MONTHLY BREAKDOWN</td></tr>
+      <tr>
+        <td style="${headFill}${cell}">Month</td>
+        <td style="${headFill}${cell}">Total</td>
+        <td style="${headFill}${cell}">Active Days</td>
+        <td style="${headFill}${cell}">Avg / Day</td>
+        <td style="${headFill}${cell}">% of Total</td>
+      </tr>
+      ${monthRows}
+      <tr>
+        <td style="${totFill}${cell}">TOTAL</td>
+        <td style="${totFill}${cell}${moneyStyle}" align="right">${num(grandTotal)}</td>
+        <td style="${totFill}${cell}" align="right">${grandDays}</td>
+        <td style="${totFill}${cell}${moneyStyle}" align="right">${num(avgPerDay)}</td>
+        <td style="${totFill}${cell}" align="right">100%</td>
+      </tr>
+    </table>
+  </body></html>`;
+
+  const blob = new Blob(['\ufeff', html], { type: 'application/vnd.ms-excel' });
+  const url  = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const safe = label.replace(/[^\w]+/g, '_').replace(/^_+|_+$/g,'');
+  a.href = url;
+  a.download = `Sales_Analysis_${safe || 'export'}.xls`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
 function clearFilters() {
   document.getElementById('year-select').value = document.getElementById('year-select').options[0]?.value;
   document.querySelectorAll('.month-chip').forEach(c => c.classList.remove('active'));
