@@ -1449,8 +1449,8 @@ function assertSafePath(path) {
   if (/^(javascript|data|vbscript|file|blob):/i.test(path)) {
     throw new Error('Blocked URL scheme in path');
   }
-  if (!(path.startsWith('/api4/sales-invoice-batch') || path.startsWith('/api4/inventory-item'))) {
-    throw new Error('Path not in whitelist: only /api4/sales-invoice-batch and /api4/inventory-item are allowed');
+  if (!(path.startsWith('/api4/sales-invoice-batch') || path.startsWith('/api4/inventory-item') || path.startsWith('/api4/non-inventory-item'))) {
+    throw new Error('Path not in whitelist: only sales-invoice-batch, inventory-item and non-inventory-item are allowed');
   }  if (!/^[A-Za-z0-9._\-\/?=&%+:,]+$/.test(path)) {
     throw new Error('Path contains disallowed characters');
   }
@@ -2597,7 +2597,7 @@ function bodyError(body) {
 function extractName(body) {
   if (!body || typeof body !== 'object') return null;
   const f = body.item && typeof body.item === 'object' ? body.item : body;
-  return { name: f.itemName || f.nameWithCode || null, code: f.itemCode || '', fields: Object.keys(f) };
+  return { name: f.itemName || f.name || f.nameWithCode || null, code: f.itemCode || f.code || '', fields: Object.keys(f) };
 }
 
 async function resolveItemNames(items) {
@@ -2615,19 +2615,18 @@ async function resolveItemNames(items) {
   let resolvedCount = 0;
   let sample = null;
 
-  // ── 1) Try the inventory catalog in one call ──
+  // ── 1) Try the item catalogs in batch (inventory + non-inventory) ──
   if (!_inventoryLoaded) {
+    let invCount = 0, nonInvCount = 0, ok = false;
     try {
-      const list = await getBatchInventoryItems(n => setNote(`Loading product catalog… ${n.toLocaleString()} items`));
-      if (list.length) {
-        indexInventory(list);
-        batchStatus = `catalog loaded (${list.length} items)`;
-      } else {
-        batchStatus = 'catalog endpoint returned 0 items';
-      }
-    } catch (e) {
-      batchStatus = 'catalog endpoint unavailable';
-    }
+      const inv = await getBatchList('/api4/inventory-item-batch', n => setNote(`Loading inventory catalog… ${n.toLocaleString()}`));
+      invCount = indexInventory(inv); ok = true;
+    } catch (e) { /* inventory catalog unavailable */ }
+    try {
+      const non = await getBatchList('/api4/non-inventory-item-batch', n => setNote(`Loading non-inventory catalog… ${n.toLocaleString()}`));
+      nonInvCount = indexInventory(non); ok = true;
+    } catch (e) { /* non-inventory catalog unavailable */ }
+    batchStatus = ok ? `catalogs loaded (${invCount} inventory, ${nonInvCount} non-inventory)` : 'catalog endpoints unavailable';
     _inventoryLoaded = true;
   } else {
     batchStatus = 'catalog cached';
@@ -2678,17 +2677,17 @@ async function resolveItemNames(items) {
   if (resolvedCount > 0 && _activeTab === 'items') renderWithFilters(); // redraw with resolved names
 }
 
-/* Page through the full inventory-item list */
-async function getBatchInventoryItems(onProgress) {
+/* Page through any *-batch list endpoint */
+async function getBatchList(endpoint, onProgress) {
   const all = [];
   let nextToken = null, pageNum = 0;
   do {
     const path = nextToken
-      ? '/api4/inventory-item-batch?PageSize=99999&next_page_token=' + encodeURIComponent(nextToken)
-      : '/api4/inventory-item-batch?PageSize=99999';
+      ? `${endpoint}?PageSize=99999&next_page_token=` + encodeURIComponent(nextToken)
+      : `${endpoint}?PageSize=99999`;
     const data = await postMessageWithResponse({ type: 'api-request', method: 'GET', path });
     if (data && (data.error || data.message) && !Array.isArray(data) && !data.items) {
-      throw new Error(data.error || data.message); // surface as catalog-unavailable
+      throw new Error(data.error || data.message);
     }
     const page = Array.isArray(data) ? data : (data.items || []);
     all.push(...page);
@@ -2700,19 +2699,23 @@ async function getBatchInventoryItems(onProgress) {
   return all;
 }
 
-/* Index an inventory list into _itemNameCache under every plausible id variant,
-   so whatever uuid the invoice line references will match. */
+/* Index an item list into _itemNameCache under every plausible id variant.
+   Handles both InventoryItem (itemName/itemCode) and NonInventoryItem (name/code).
+   Returns the number of named items indexed. */
 function indexInventory(list) {
+  let count = 0;
   for (const el of list) {
     const f = el.item && typeof el.item === 'object' ? el.item : el;
-    const name = f.itemName || f.nameWithCode || el.itemName || el.nameWithCode;
+    const name = f.itemName || f.name || f.nameWithCode || el.itemName || el.name || el.nameWithCode;
     if (!name) continue;
-    const code = f.itemCode || el.itemCode || '';
+    const code = f.itemCode || f.code || el.itemCode || el.code || '';
     const entry = { name, code };
     for (const id of [el.key, el.id, f.key, f.id]) {
       if (id) _itemNameCache[id] = entry;
     }
+    count++;
   }
+  return count;
 }
 
 /* ══════════════════════════════════════════════
