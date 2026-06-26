@@ -217,9 +217,17 @@ body {
 .tab-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; }
 
 /* ── Main view tabs ── */
-.main-tabs {
-  display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;
+.main-tabs-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.topbar-src { display: flex; align-items: center; gap: 8px; }
+.main-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── Per-section PDF button ── */
+.section-print-bar { display: flex; justify-content: flex-end; margin-bottom: 6px; }
+.print-sec-btn {
+  border: 1px solid var(--border); background: var(--card); color: var(--blue);
+  font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 7px; cursor: pointer;
 }
+.print-sec-btn:hover { background: var(--blue); color: #fff; border-color: var(--blue); }
 .main-tab {
   display: flex; align-items: center; gap: 8px;
   padding: 10px 18px; border: 1px solid var(--border); border-radius: 10px;
@@ -331,6 +339,20 @@ body {
 .item-row:hover td { background: #f8fafc; }
 .chev { display: inline-block; width: 12px; color: var(--muted); font-size: 10px; margin-right: 4px; }
 .drill-row { display: none; }
+.drill-row.open { display: table-row; }
+.day-row { cursor: pointer; }
+.drill-chev { display: inline-block; width: 10px; color: var(--muted); font-size: 10px; }
+
+/* ── Heatmap ── */
+.hm-wrap { margin-bottom: 8px; }
+.hm-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+.heatmap { border-collapse: collapse; font-size: 10px; width: 100%; }
+.heatmap th { padding: 4px 5px; font-weight: 600; color: var(--muted); background: var(--card); position: sticky; top: 0; }
+.heatmap th.hm-day { min-width: 30px; text-align: center; }
+.heatmap td { padding: 3px 5px; text-align: center; border: 1px solid #fff; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.heatmap td.hm-month, .heatmap th.hm-month { position: sticky; left: 0; background: var(--card); text-align: left; font-weight: 700; color: var(--text); min-width: 74px; z-index: 1; }
+.heatmap td.hm-empty { background: var(--light); }
+.heatmap td.hm-tot, .heatmap th.hm-tot { font-weight: 700; background: var(--light); position: sticky; right: 0; }
 .drill-row > td { background: #f9fbfd !important; padding: 0 !important; }
 .drill-wrap { padding: 12px 16px; }
 .drill-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
@@ -1755,6 +1777,7 @@ function indexPLAccounts(list) {
 let _activeTab = 'overview';          // 'overview' | 'items'
 let _overviewSource = 'all';          // overview: 'all' | 'invoice' | 'receipt'
 let _activeMonthKey = null;           // monthly breakdown: currently selected month
+let _activeMonthData = null;          // its grouped data (for day drill-down)
 let _lastFilteredItems = [];          // items feeding the itemised tab
 let _itemSource = 'all';              // 'all' | 'invoice' | 'receipt'
 let _drillRows = [];                  // current top rows (for drill-down lookup)
@@ -1775,16 +1798,6 @@ function setOverviewSource(src) {
 function selectMonthKey(key) {
   _activeMonthKey = key;
   renderWithFilters();
-}
-/* Source toggle shown at the top of the Overview */
-function buildOverviewSourceToggle() {
-  if (!_receiptsLoaded) return '';
-  const b = (id, lbl) => `<button class="seg-btn ${_overviewSource===id?'active':''}" onclick="setOverviewSource('${id}')">${lbl}</button>`;
-  return `<div class="src-filter">
-    <span class="src-filter-lbl">Sales source:</span>
-    <div class="seg">${b('all','Invoices + Cash')}${b('invoice','Invoices only')}${b('receipt','Cash receipts only')}</div>
-    <span style="font-size:11.5px;color:var(--muted)">Cash sales count only itemised or P&amp;L-income receipt lines${_plLoaded ? '' : ' (reload to verify accounts)'}.</span>
-  </div>`;
 }
 function setItemSort(key) {
   _itemSortKey = key;
@@ -1898,25 +1911,35 @@ function receiptSalesTotal(rec) {
 }
 
 /* Combined day-level grouping across invoices + qualifying cash receipts.
-   source: 'all' | 'invoice' | 'receipt' */
+   source: 'all' | 'invoice' | 'receipt'
+   Each month carries: days{day:total}, daysSrc{day:{invoice,receipt}},
+   dayTxns{day:[{source,ref,amount}]} for split views and drill-down. */
 function groupSales(invoices, receipts, source) {
   const map = {};
-  const add = (year, month, day, amt) => {
-    if (!amt) return;
+  const ensure = (year, month) => {
     const key = `${year}-${String(month).padStart(2,'0')}`;
-    if (!map[key]) map[key] = { year, month, days: {} };
-    map[key].days[day] = (map[key].days[day] || 0) + amt;
+    if (!map[key]) map[key] = { year, month, days: {}, daysSrc: {}, dayTxns: {} };
+    return map[key];
+  };
+  const addTxn = (year, month, day, amt, src, ref) => {
+    if (!amt) return;
+    const mo = ensure(year, month);
+    mo.days[day] = (mo.days[day] || 0) + amt;
+    const s = mo.daysSrc[day] || (mo.daysSrc[day] = { invoice: 0, receipt: 0 });
+    s[src] += amt;
+    const arr = mo.dayTxns[day] || (mo.dayTxns[day] = []);
+    if (arr.length < 500) arr.push({ source: src, ref: ref || '', amount: amt });
   };
   if (source !== 'receipt') {
     for (const inv of invoices) {
       const d = parseDate(inv.item?.issueDate);
-      if (d) add(d.year, d.month, d.day, invoiceTotal(inv));
+      if (d) addTxn(d.year, d.month, d.day, invoiceTotal(inv), 'invoice', inv.item?.reference);
     }
   }
   if (source !== 'invoice') {
     for (const r of receipts) {
       const d = parseDate(r.item?.date);
-      if (d) add(d.year, d.month, d.day, receiptSalesTotal(r));
+      if (d) addTxn(d.year, d.month, d.day, receiptSalesTotal(r), 'receipt', r.item?.reference);
     }
   }
   return map;
@@ -2005,7 +2028,6 @@ function renderWithFilters() {
   }
 
   // ── Overview: combine invoices + qualifying cash receipts ──
-  html += buildOverviewSourceToggle();
   const grouped = groupSales(filtered, filteredReceipts, _overviewSource);
   const monthKeys = Object.keys(grouped).sort();
   if (!monthKeys.length) {
@@ -2171,11 +2193,73 @@ function attachFilterListeners(years) {
 }
 
 /* ══════════════════════════════════════════════
+   PER-SECTION PDF / PRINT
+══════════════════════════════════════════════ */
+function buildSectionPrintBar(title, id) {
+  return `<div class="section-print-bar no-print">
+    <button class="print-sec-btn" onclick="printSection('${id}', '${title.replace(/'/g,"\\'")}')">🖨 Save as PDF</button>
+  </div>`;
+}
+
+function currentFilterLabel() {
+  const y  = document.getElementById('year-select')?.value || '';
+  const sd = document.getElementById('start-date')?.value || '';
+  const ed = document.getElementById('end-date')?.value || '';
+  const range = (sd || ed) ? `${sd || '…'} to ${ed || '…'}` : (y === 'all' ? 'All Years' : y);
+  const src = _overviewSource === 'all' ? 'Invoices + Cash' : _overviewSource === 'invoice' ? 'Invoices only' : 'Cash receipts only';
+  return `${range} · ${src}`;
+}
+
+function printStyles() {
+  let css = '';
+  document.querySelectorAll('style').forEach(s => css += s.textContent + '\n');
+  css += `
+    body { background:#fff; padding:20px; color:#1e293b; }
+    .print-head { margin-bottom:16px; border-bottom:3px solid #1d6fcf; padding-bottom:10px; }
+    .ph-title { font-size:22px; font-weight:800; color:#0f172a; }
+    .ph-sub { font-size:12px; color:#64748b; margin-top:2px; }
+    .section-print-bar, .btn-edit-row, .btn-hide-month, .month-header-actions, .no-print { display:none !important; }
+    .month-body-collapsible { max-height:none !important; }
+    .drill-row { display:table-row !important; }
+    @page { size: A4; margin: 12mm; }
+    * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+  `;
+  return css;
+}
+
+/* Print one section to a clean PDF-ready window (charts captured as images) */
+function printSection(id, title) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const clone = el.cloneNode(true);
+  const live = el.querySelectorAll('canvas');
+  const cloned = clone.querySelectorAll('canvas');
+  live.forEach((c, i) => {
+    try {
+      const img = document.createElement('img');
+      img.src = c.toDataURL('image/png');
+      img.style.maxWidth = '100%';
+      if (cloned[i]) cloned[i].replaceWith(img);
+    } catch (e) {}
+  });
+  const w = window.open('', '_blank');
+  if (!w) { alert('Please allow pop-ups to save this section as PDF.'); return; }
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>
+    <style>${printStyles()}</style></head><body>
+    <div class="print-head"><div class="ph-title">${title}</div>
+      <div class="ph-sub">${escHTML(currentFilterLabel())} · Generated ${new Date().toLocaleString()}</div></div>
+    ${clone.outerHTML}
+    </body></html>`);
+  w.document.close();
+  setTimeout(() => { try { w.focus(); w.print(); } catch(e){} }, 400);
+}
+
+/* ══════════════════════════════════════════════
    OVERALL SUMMARY
 ══════════════════════════════════════════════ */
 function buildOverallSummary(grouped, monthKeys) {
   let grandTotal = 0, grandDays = 0, bestMonth = null, bestMonthTotal = 0;
-  let totalInvoices = 0;
+  let grandInvoice = 0, grandReceipt = 0;
 
   for (const key of monthKeys) {
     const m = grouped[key];
@@ -2183,19 +2267,37 @@ function buildOverallSummary(grouped, monthKeys) {
     grandTotal += mTotal;
     grandDays  += Object.keys(m.days).length;
     if (mTotal > bestMonthTotal) { bestMonthTotal = mTotal; bestMonth = key; }
+    for (const s of Object.values(m.daysSrc || {})) { grandInvoice += s.invoice || 0; grandReceipt += s.receipt || 0; }
   }
 
   const avgPerMonth = monthKeys.length ? grandTotal / monthKeys.length : 0;
   const avgPerDay   = grandDays ? grandTotal / grandDays : 0;
   const bm = bestMonth ? grouped[bestMonth] : null;
+  const showSplit = _receiptsLoaded && _overviewSource === 'all';
+  const pctInv = grandTotal ? (grandInvoice / grandTotal * 100) : 0;
+  const pctRec = grandTotal ? (grandReceipt / grandTotal * 100) : 0;
+
+  const splitCards = showSplit ? `
+    <div class="summary-card" style="border-top-color:#2563eb">
+      <div class="sc-label">From Invoices</div>
+      <div class="sc-value">${fmtKWD(grandInvoice)}</div>
+      <div class="sc-sub">${pctInv.toFixed(1)}% of sales</div>
+    </div>
+    <div class="summary-card" style="border-top-color:#16a34a">
+      <div class="sc-label">From Cash Receipts</div>
+      <div class="sc-value">${fmtKWD(grandReceipt)}</div>
+      <div class="sc-sub">${pctRec.toFixed(1)}% of sales</div>
+    </div>` : '';
 
   return `
-  <div class="summary-grid">
+  ${buildSectionPrintBar('Overview summary', 'sec-summary')}
+  <div class="summary-grid" id="sec-summary">
     <div class="summary-card blue">
       <div class="sc-label">Grand Total</div>
       <div class="sc-value">${fmtKWD(grandTotal)}</div>
       <div class="sc-sub">across ${monthKeys.length} month(s)</div>
     </div>
+    ${splitCards}
     <div class="summary-card green">
       <div class="sc-label">Avg / Month</div>
       <div class="sc-value">${fmtKWD(avgPerMonth)}</div>
@@ -2225,6 +2327,8 @@ function buildOverallSummary(grouped, monthKeys) {
 function buildRevenueEvolution(grouped, monthKeys) {
   if (!monthKeys.length) return '';
   return `
+  ${buildSectionPrintBar('Revenue Trend', 'sec-revenue')}
+  <div id="sec-revenue">
   <div class="section-header">📈 Revenue Evolution <span class="badge" style="background:var(--blue-lt);color:var(--blue)">Main Chart</span></div>
   <div class="rev-evolution-block">
     <div class="rev-evolution-title">
@@ -2240,6 +2344,7 @@ function buildRevenueEvolution(grouped, monthKeys) {
       <canvas id="chart_revenue_evolution"></canvas>
     </div>
     <div class="rev-stats-row" id="rev-stats-row"></div>
+  </div>
   </div>`;
 }
 
@@ -2288,7 +2393,9 @@ function buildMonthlyBreakdownSection(grouped, monthKeys, hiddenMonths, sectionV
 }
 
 function buildMonthBlockV2(m, key) {
+  _activeMonthData = m;
   const days     = m.days;
+  const daysSrc  = m.daysSrc || {};
   const dayNums  = Object.keys(days).map(Number).sort((a,b)=>a-b);
   const total    = dayNums.reduce((s,d) => s + days[d], 0);
   const avg      = dayNums.length ? total / dayNums.length : 0;
@@ -2298,94 +2405,119 @@ function buildMonthBlockV2(m, key) {
   const headerClass = MONTH_CLASSES[m.month];
   const monthName   = MONTHS[m.month];
   const uid         = key.replace('-','_');
+  const showSplit   = _receiptsLoaded && _overviewSource === 'all';
 
-  // Table rows
+  let invTot = 0, cashTot = 0;
+  for (const d of dayNums) { const s = daysSrc[d] || {}; invTot += s.invoice || 0; cashTot += s.receipt || 0; }
+  const span = showSplit ? 7 : 5;
+
+  // Table rows (each day clickable → drill-down)
   let rows = '';
   for (const d of dayNums) {
     const val = days[d];
     const pct = total ? (val / total * 100) : 0;
+    const s   = daysSrc[d] || { invoice: 0, receipt: 0 };
     const isBest  = d === bestDay;
     const isWorst = d === worstDay;
     const trClass = isBest ? 'best-row' : (isWorst ? 'worst-row' : '');
     const badge   = isBest ? ' 🏆' : (isWorst ? ' ⚠' : '');
     const barW    = Math.max(2, Math.round(pct * 2));
     rows += `
-    <tr class="${trClass}">
-      <td><strong>Day ${d}</strong></td>
+    <tr class="${trClass} day-row" onclick="toggleDayDrill('${uid}',${d})">
+      <td><span class="drill-chev" id="dchev_${uid}_${d}">▸</span> <strong>Day ${d}</strong></td>
       <td>${formatDayDate(m.year, m.month, d)}</td>
+      ${showSplit ? `<td style="text-align:right">${s.invoice ? fmtKWD(s.invoice) : '—'}</td><td style="text-align:right">${s.receipt ? fmtKWD(s.receipt) : '—'}</td>` : ''}
       <td style="text-align:right"><strong>${fmtKWD(val)}</strong>${badge}</td>
-      <td>
-        <div class="pct-bar-wrap">
-          <div class="pct-bar" style="width:${barW}px;background:${MONTH_COLORS[m.month]}"></div>
-          <span class="pct-txt">${pct.toFixed(2)}%</span>
-        </div>
-      </td>
-      <td style="text-align:center">
-        <button class="btn-edit-row" title="Edit invoices for Day ${d}" onclick="openEditModal(${m.year},${m.month},${d},${fmtKWD(val).replace(/,/g,'')})">✏</button>
-      </td>
-    </tr>`;
+      <td><div class="pct-bar-wrap"><div class="pct-bar" style="width:${barW}px;background:${MONTH_COLORS[m.month]}"></div><span class="pct-txt">${pct.toFixed(2)}%</span></div></td>
+      <td style="text-align:center"><button class="btn-edit-row" title="Edit invoices for Day ${d}" onclick="event.stopPropagation();openEditModal(${m.year},${m.month},${d},${fmtKWD(val).replace(/,/g,'')})">✏</button></td>
+    </tr>
+    <tr class="drill-row" id="ddrill_${uid}_${d}"><td colspan="${span}"><div id="ddrillc_${uid}_${d}"></div></td></tr>`;
   }
   rows += `
   <tr class="total-row">
     <td colspan="2">📊 Monthly Total</td>
+    ${showSplit ? `<td style="text-align:right">${fmtKWD(invTot)}</td><td style="text-align:right">${fmtKWD(cashTot)}</td>` : ''}
     <td style="text-align:right">${fmtKWD(total)}</td>
     <td><span style="font-size:11px;color:var(--muted)">100.00%</span></td>
     <td></td>
   </tr>`;
 
+  const headCols = `<th>Day</th><th>Date</th>${showSplit ? '<th style="text-align:right">Invoices</th><th style="text-align:right">Cash</th>' : ''}<th style="text-align:right">Total</th><th>% of Month</th><th style="text-align:center;width:44px">Edit</th>`;
+
   return `
-  <div class="month-block-v2">
-    <div class="month-header-v2 ${headerClass}" onclick="toggleMonthCollapse('${uid}')">
+  <div class="month-block-v2" id="month-detail">
+    ${buildSectionPrintBar(monthName + ' ' + m.year, 'month-detail')}
+    <div class="month-header-v2 ${headerClass}">
       <div class="month-title-wrap">
-        <span class="month-collapse-icon" id="micon_${uid}">▼</span>
         <div class="month-title">${monthName} ${m.year}</div>
         <div class="month-meta">
           <div class="meta-item">Total: <span>${fmtKWD(total)}</span></div>
+          ${showSplit ? `<div class="meta-item">Invoices: <span>${fmtKWD(invTot)}</span></div><div class="meta-item">Cash: <span>${fmtKWD(cashTot)}</span></div>` : ''}
           <div class="meta-item">Avg/Day: <span>${fmtKWD(avg)}</span></div>
           <div class="meta-item">Best: <span>Day ${bestDay}</span></div>
           <div class="meta-item">Active: <span>${dayNums.length} days</span></div>
         </div>
       </div>
-      <div class="month-header-actions" onclick="event.stopPropagation()">
+      <div class="month-header-actions">
         <button class="btn-hide-month" onclick="hideMonthKey('${key}')">✕ Hide Month</button>
       </div>
     </div>
-    <div class="month-body-collapsible" id="mbody_${uid}">
-      <div class="month-body">
-        <div class="tab-bar">
-          <button class="tab-btn active" onclick="switchTab('${uid}','table',this)">📋 Table</button>
-          <button class="tab-btn" onclick="switchTab('${uid}','chart',this)">📈 Chart</button>
-          <button class="tab-btn" onclick="switchTab('${uid}','both',this)">⊞ Both</button>
-        </div>
-        <div id="${uid}_table">
-          <div class="table-scroll">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Day</th>
-                  <th>Date</th>
-                  <th style="text-align:right">Sales Amount</th>
-                  <th>% of Month</th>
-                  <th style="text-align:center;width:44px">Edit</th>
-                </tr>
-              </thead>
-              <tbody>${rows}</tbody>
-            </table>
+    <div class="month-body">
+      <div class="tab-bar">
+        <button class="tab-btn" onclick="switchTab('${uid}','table',this)">📋 Table</button>
+        <button class="tab-btn" onclick="switchTab('${uid}','chart',this)">📈 Chart</button>
+        <button class="tab-btn active" onclick="switchTab('${uid}','both',this)">⊞ Both</button>
+      </div>
+      <div id="${uid}_chart">
+        <div class="chart-wrap">
+          <div class="chart-title">
+            <span>📈 Daily Sales — ${monthName} ${m.year}${showSplit ? ' (Invoices vs Cash)' : ''}</span>
+            <span class="chart-total-badge">Total: ${fmtKWD(total)}</span>
           </div>
+          <div class="canvas-container"><canvas id="chart_${uid}"></canvas></div>
         </div>
-        <div id="${uid}_chart" style="display:none">
-          <div class="chart-wrap">
-            <div class="chart-title">
-              <span>Daily Sales Trend — ${monthName} ${m.year}</span>
-              <span class="chart-total-badge">Total: ${fmtKWD(total)}</span>
-            </div>
-            <div class="canvas-container">
-              <canvas id="chart_${uid}"></canvas>
-            </div>
-          </div>
+      </div>
+      <div id="${uid}_table">
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead><tr>${headCols}</tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
         </div>
       </div>
     </div>
+  </div>`;
+}
+
+/* Day drill-down: list the transactions that make up a day's total */
+function toggleDayDrill(uid, d) {
+  const row  = document.getElementById('ddrill_' + uid + '_' + d);
+  const chev = document.getElementById('dchev_' + uid + '_' + d);
+  if (!row) return;
+  const open = row.classList.toggle('open');
+  if (chev) chev.textContent = open ? '▾' : '▸';
+  if (open) {
+    const c = document.getElementById('ddrillc_' + uid + '_' + d);
+    if (c && !c.dataset.filled) { c.innerHTML = dayDrillTable(d); c.dataset.filled = '1'; }
+  }
+}
+function dayDrillTable(d) {
+  const m = _activeMonthData;
+  const txns = (m && m.dayTxns && m.dayTxns[d]) || [];
+  if (!txns.length) return `<div class="drill-wrap"><div class="sub">No transaction detail available.</div></div>`;
+  const sorted = [...txns].sort((a,b) => b.amount - a.amount).slice(0, 200);
+  const rows = sorted.map(t => `<tr>
+    <td><span class="src-tag src-${t.source}">${t.source === 'invoice' ? 'Invoice' : 'Cash'}</span></td>
+    <td>${escHTML(t.ref || '—')}</td>
+    <td class="num">${fmtKWD(t.amount)}</td>
+  </tr>`).join('');
+  return `<div class="drill-wrap">
+    <div class="drill-title">Transactions on Day ${d}</div>
+    <table class="drill-table">
+      <thead><tr><th>Source</th><th>Reference</th><th class="num">Amount</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${txns.length > 200 ? `<div class="sub" style="margin-top:6px">Showing 200 of ${txns.length} transactions.</div>` : ''}
   </div>`;
 }
 
@@ -2397,10 +2529,23 @@ function buildMainTabs() {
     { id: 'overview', emoji: '📊', label: 'Overview' },
     { id: 'items',    emoji: '📦', label: 'Itemised Analysis' },
   ];
-  return `<div class="main-tabs">` + tabs.map(t =>
+  const tabBtns = tabs.map(t =>
     `<div class="main-tab ${_activeTab===t.id?'active':''}" onclick="switchMainTab('${t.id}')">
        <span class="mt-emoji">${t.emoji}</span>${t.label}</div>`
-  ).join('') + `</div>`;
+  ).join('');
+  // Source toggle lives in the top bar (Overview only; Itemised has its own)
+  let srcToggle = '';
+  if (_activeTab === 'overview' && _receiptsLoaded) {
+    const b = (id, lbl) => `<button class="seg-btn ${_overviewSource===id?'active':''}" onclick="setOverviewSource('${id}')">${lbl}</button>`;
+    srcToggle = `<div class="topbar-src">
+      <span class="src-filter-lbl">Source:</span>
+      <div class="seg">${b('all','Invoices + Cash')}${b('invoice','Invoices')}${b('receipt','Cash')}</div>
+    </div>`;
+  }
+  return `<div class="main-tabs-bar">
+    <div class="main-tabs">${tabBtns}</div>
+    ${srcToggle}
+  </div>`;
 }
 
 /* Foreign → base currency conversion for a single value (mirrors invoiceTotal) */
@@ -3177,12 +3322,11 @@ function buildComparisonSection(grouped, monthKeys) {
   }
 
   return `
+  ${buildSectionPrintBar('Month-to-Month Comparison', 'sec-comparison')}
+  <div id="sec-comparison">
   <div class="section-header">🔀 Month-to-Month Comparison <span class="badge" style="background:var(--purple-lt);color:var(--purple)">${monthKeys.length} months</span></div>
   <div class="comparison-block">
-    <div class="chart-wrap">
-      <div class="chart-title"><span>📈 Overlay: Daily Sales Across Months</span></div>
-      <div class="comp-chart-container"><canvas id="chart_comparison"></canvas></div>
-    </div>
+    ${buildHeatmap(grouped, monthKeys)}
     <div class="section-header" style="margin-top:18px;font-size:14px">📆 Day-to-Day Comparison</div>
     <div class="day-compare-wrap">
       <table class="day-compare-table">
@@ -3192,7 +3336,43 @@ function buildComparisonSection(grouped, monthKeys) {
     </div>
     <div class="section-header" style="margin-top:18px;font-size:14px">📊 Performance Summary</div>
     <div class="perf-grid">${perfCards}</div>
+  </div>
   </div>`;
+}
+
+/* Heatmap: months (rows) × day-of-month 1..31 (cols), colored by sales */
+function buildHeatmap(grouped, monthKeys) {
+  let maxV = 0;
+  for (const key of monthKeys) for (const d in grouped[key].days) maxV = Math.max(maxV, grouped[key].days[d]);
+  if (!maxV) maxV = 1;
+  const dayHeaders = Array.from({length:31}, (_,i)=>i+1);
+  const head = '<th class="hm-month">Month</th>' + dayHeaders.map(d=>`<th class="hm-day">${d}</th>`).join('') + '<th class="hm-tot">Total</th>';
+  let rows = '';
+  for (const key of monthKeys) {
+    const m = grouped[key];
+    const mTotal = Object.values(m.days).reduce((a,b)=>a+b,0);
+    let cells = `<td class="hm-month">${MONTH_ABBR[m.month]} ${m.year}</td>`;
+    for (const d of dayHeaders) {
+      const v = m.days[d] || 0;
+      if (!v) { cells += `<td class="hm-cell hm-empty"></td>`; continue; }
+      const t = v / maxV;
+      const txt = t > 0.5 ? '#fff' : '#1e293b';
+      cells += `<td class="hm-cell" style="background:${heatColor(t)};color:${txt}" title="${MONTHS[m.month]} ${m.year} · Day ${d}: ${fmtKWD(v)}">${fmtShort(v)}</td>`;
+    }
+    cells += `<td class="hm-tot">${fmtShort(mTotal)}</td>`;
+    rows += `<tr>${cells}</tr>`;
+  }
+  return `
+  <div class="hm-wrap">
+    <div class="chart-title"><span>🔥 Heatmap: Daily Sales by Day-of-Month</span><span style="font-size:11px;color:var(--muted);font-weight:500">darker = higher sales</span></div>
+    <div class="hm-scroll"><table class="heatmap"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>
+  </div>`;
+}
+function heatColor(t) {
+  const r = Math.round(219 + (29  - 219) * t);
+  const g = Math.round(234 + (78  - 234) * t);
+  const b = Math.round(254 + (216 - 254) * t);
+  return `rgb(${r},${g},${b})`;
 }
 
 /* ══════════════════════════════════════════════
@@ -3314,6 +3494,39 @@ function buildMonthChart(canvas, m, key) {
   const total     = vals.reduce((a,b)=>a+b,0);
   const avg       = vals.length ? total/vals.length : 0;
   const color     = MONTH_COLORS[m.month];
+  const showSplit = _receiptsLoaded && _overviewSource === 'all' && m.daysSrc;
+
+  // Split mode: stacked Invoices vs Cash bars
+  if (showSplit) {
+    const inv  = dayNums.map(d => (m.daysSrc[d]?.invoice) || 0);
+    const cash = dayNums.map(d => (m.daysSrc[d]?.receipt) || 0);
+    chartInstances[canvas.id] = new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: dayNums,
+        datasets: [
+          { label: 'Invoices', data: inv,  backgroundColor: hexToRgba('#2563eb', 0.85), stack: 's', borderRadius: 2 },
+          { label: 'Cash',     data: cash, backgroundColor: hexToRgba('#16a34a', 0.85), stack: 's', borderRadius: 2 },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } },
+          tooltip: { callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${fmtKWD(ctx.raw)}`,
+            footer: items => 'Total: ' + fmtKWD(items.reduce((a,i)=>a+i.raw,0))
+          } }
+        },
+        scales: {
+          x: { stacked: true, title: { display: true, text: 'Day of Month', font: { size: 11 } }, grid: { display: false } },
+          y: { stacked: true, title: { display: true, text: 'Sales Amount', font: { size: 11 } }, grid: { color: '#f1f5f9' }, ticks: { callback: v => fmtShort(v) } }
+        }
+      }
+    });
+    return;
+  }
 
   // Average reference line dataset
   const avgData = dayNums.map(() => avg);
