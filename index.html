@@ -289,6 +289,39 @@ body {
 .item-chart-box.tall { height: 380px; }
 .item-empty { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 14px; }
 
+/* Source filter (segmented) */
+.src-filter { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.src-filter-lbl { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.seg { display: inline-flex; background: var(--light); border: 1px solid var(--border); border-radius: 9px; padding: 3px; gap: 2px; }
+.seg-btn { border: none; background: transparent; padding: 6px 14px; border-radius: 7px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.seg-btn.active { background: var(--blue); color: #fff; box-shadow: 0 1px 3px rgba(29,111,207,.3); }
+.src-warn { font-size: 11.5px; color: var(--amber); font-weight: 600; }
+
+/* Source tags */
+.src-tag { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 5px; white-space: nowrap; }
+.src-invoice { background: #e0edff; color: #1d6fcf; }
+.src-receipt { background: #d8f3e3; color: #15924f; }
+.acct-tag { font-size: 9.5px; font-weight: 700; padding: 1px 5px; border-radius: 4px; background: var(--light); color: var(--muted); vertical-align: middle; }
+
+/* Per-row invoice/cash split bar */
+.src-col { min-width: 70px; }
+.srcsplit { display: flex; height: 8px; width: 64px; border-radius: 4px; overflow: hidden; background: var(--light); }
+.srcsplit-inv  { background: var(--blue); }
+.srcsplit-rcpt { background: var(--green); }
+
+/* Drill-down */
+.item-row { cursor: pointer; }
+.item-row:hover td { background: #f8fafc; }
+.chev { display: inline-block; width: 12px; color: var(--muted); font-size: 10px; margin-right: 4px; }
+.drill-row { display: none; }
+.drill-row > td { background: #f9fbfd !important; padding: 0 !important; }
+.drill-wrap { padding: 12px 16px; }
+.drill-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
+.drill-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.drill-table th { text-align: left; padding: 5px 8px; color: var(--muted); font-weight: 600; font-size: 10.5px; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+.drill-table td { padding: 5px 8px; border-bottom: 1px solid #eef2f6; }
+.drill-table td.num, .drill-table th.num { text-align: right; }
+
 /* ── Comparison Section ── */
 .comparison-block {
   background: var(--card); border: 1px solid var(--border); border-radius: 12px;
@@ -1092,7 +1125,7 @@ body {
         <div class="sec-check-body">
           <div class="sec-check-title">Read-only API access <span class="sec-check-status">GET ONLY</span></div>
           <div class="sec-check-desc">
-            Only HTTP GET requests are ever made — specifically to the <code style="font-family:ui-monospace,monospace;color:var(--blue)">sales-invoice-batch</code> endpoint. No writes, no mutations, nothing you do here can change data.
+            Only HTTP GET requests are ever made — to the read-only <code style="font-family:ui-monospace,monospace;color:var(--blue)">sales-invoice-batch</code>, <code style="font-family:ui-monospace,monospace;color:var(--blue)">receipt-batch</code>, <code style="font-family:ui-monospace,monospace;color:var(--blue)">inventory-item</code>, <code style="font-family:ui-monospace,monospace;color:var(--blue)">non-inventory-item</code> and <code style="font-family:ui-monospace,monospace;color:var(--blue)">profit-and-loss-statement-account</code> endpoints. No writes, no mutations, nothing you do here can change data.
           </div>
         </div>
       </div>
@@ -1449,8 +1482,8 @@ function assertSafePath(path) {
   if (/^(javascript|data|vbscript|file|blob):/i.test(path)) {
     throw new Error('Blocked URL scheme in path');
   }
-  if (!(path.startsWith('/api4/sales-invoice-batch') || path.startsWith('/api4/inventory-item') || path.startsWith('/api4/non-inventory-item'))) {
-    throw new Error('Path not in whitelist: only sales-invoice-batch, inventory-item and non-inventory-item are allowed');
+  if (!(path.startsWith('/api4/sales-invoice-batch') || path.startsWith('/api4/inventory-item') || path.startsWith('/api4/non-inventory-item') || path.startsWith('/api4/receipt') || path.startsWith('/api4/profit-and-loss-statement-account'))) {
+    throw new Error('Path not in whitelist: only sales-invoice-batch, inventory-item, non-inventory-item, receipt and profit-and-loss-statement-account are allowed');
   }  if (!/^[A-Za-z0-9._\-\/?=&%+:,]+$/.test(path)) {
     throw new Error('Path contains disallowed characters');
   }
@@ -1633,7 +1666,34 @@ async function loadAllRecords() {
     });
 
     bar.style.width = '100%';
-    status.textContent = `✓ ${items.length.toLocaleString()} records loaded`;
+    status.textContent = `✓ ${items.length.toLocaleString()} invoices loaded`;
+
+    // Also load cash sales (receipts) — best effort; itemised tab uses them.
+    try {
+      status.textContent = `✓ ${items.length.toLocaleString()} invoices · loading receipts…`;
+      ALL_RECEIPTS = await getBatchList('/api4/receipt-batch', n => {
+        status.textContent = `✓ ${items.length.toLocaleString()} invoices · ${n.toLocaleString()} receipts…`;
+      });
+      _receiptsLoaded = true;
+      status.textContent = `✓ ${items.length.toLocaleString()} invoices · ${ALL_RECEIPTS.length.toLocaleString()} receipts loaded`;
+    } catch (e) {
+      ALL_RECEIPTS = []; _receiptsLoaded = false;
+      status.textContent = `✓ ${items.length.toLocaleString()} invoices loaded (receipts unavailable)`;
+    }
+
+    // Load Profit & Loss accounts so receipt account-lines can be restricted to
+    // genuine income/P&L accounts (excludes loans, capital, transfers, etc.).
+    try {
+      const pl = await getBatchList('/api4/profit-and-loss-statement-account-batch', n => {
+        status.textContent = `✓ loading chart of accounts… ${n.toLocaleString()}`;
+      });
+      indexPLAccounts(pl);
+      _plLoaded = true;
+      status.textContent = `✓ ${items.length.toLocaleString()} invoices · ${ALL_RECEIPTS.length.toLocaleString()} receipts · ${_plAccountKeys.size} P&L accounts`;
+    } catch (e) {
+      _plLoaded = false;
+    }
+
     btn.textContent = '↺ Reload';
     btn.disabled = false;
 
@@ -1651,11 +1711,34 @@ async function loadAllRecords() {
    GLOBAL STATE
 ══════════════════════════════════════════════ */
 let ALL_ITEMS = [];
+let ALL_RECEIPTS = [];               // cash sales (receipts)
+let _receiptsLoaded = false;
+let _plAccountKeys = new Set();      // keys/ids of Profit & Loss accounts
+let _accountNameCache = {};          // account uuid → { name, code }
+let _plLoaded = false;
 let chartInstances = {}; // track Chart.js instances to destroy on re-render
+
+/* Index P&L accounts: record their keys (to validate receipt income lines) and
+   names (to label account-based revenue rows). */
+function indexPLAccounts(list) {
+  for (const el of list) {
+    const f = el.item && typeof el.item === 'object' ? el.item : el;
+    const name = f.name || f.nameWithCode || el.name;
+    const code = f.code || el.code || '';
+    const entry = name ? { name, code } : null;
+    for (const id of [el.key, el.id, f.key, f.id]) {
+      if (!id) continue;
+      _plAccountKeys.add(id);
+      if (entry) _accountNameCache[id] = entry;
+    }
+  }
+}
 
 /* ── Itemised Analysis state ── */
 let _activeTab = 'overview';          // 'overview' | 'items'
 let _lastFilteredItems = [];          // items feeding the itemised tab
+let _itemSource = 'all';              // 'all' | 'invoice' | 'receipt'
+let _drillRows = [];                  // current top rows (for drill-down lookup)
 let _itemNameCache = {};              // uuid → { name, code }
 let _itemResolveBusy = false;
 let _itemStatsCache = null;           // computed stats for current itemised render
@@ -1669,6 +1752,18 @@ function switchMainTab(tab) {
 function setItemSort(key) {
   _itemSortKey = key;
   renderWithFilters();
+}
+function setItemSource(src) {
+  _itemSource = src;
+  renderWithFilters();
+}
+function toggleDrill(i) {
+  const row = document.getElementById('drill-' + i);
+  const chev = document.getElementById('chev-' + i);
+  if (!row) return;
+  const open = row.style.display === 'table-row';
+  row.style.display = open ? 'none' : 'table-row';
+  if (chev) chev.textContent = open ? '▸' : '▾';
 }
 
 /* ══════════════════════════════════════════════
@@ -1830,7 +1925,8 @@ function renderWithFilters() {
 
   if (_activeTab === 'items') {
     _lastFilteredItems = filtered;
-    html += buildItemisedAnalysis(filtered);
+    const filteredReceipts = filterReceipts(ALL_RECEIPTS, selYear, selMonths, startDate, endDate);
+    html += buildItemisedAnalysis(filtered, filteredReceipts);
     app.innerHTML = html;
     attachFilterListeners(years);
     // Build item charts after DOM insert, then lazily resolve real product names
@@ -2223,63 +2319,128 @@ function fxConvert(inv, v) {
 function lineItemKey(ln) { return ln.item || ln.inventoryItem || ln.itemKey || null; }
 function lineDesc(ln)    { return String(ln.lineDescription || ln.description || ln.itemName || '').trim(); }
 
-/* Display label / code for an item stat, using resolved inventory names when available */
+/* Reference fields on a line that mean it is NOT a sale (settlements, loans,
+   capital, transfers, AP, etc.). Used to keep non-trading receipts out. */
+const NON_SALES_LINE_REFS = ['accountsReceivableCustomer','accountsReceivableSalesInvoice',
+  'billableExpenseCustomer','billableExpenseSalesInvoice','accountsPayableSupplier','purchaseInvoice',
+  'withholdingTaxPayableSupplier','employee','capitalAccount','subAccount','specialAccount',
+  'fixedAsset','intangibleAsset','expenseClaimsPayer','investment','interAccountTransferAccount'];
+
+function isNonSalesReceiptLine(ln) { return NON_SALES_LINE_REFS.some(f => ln[f]); }
+
+/* A receipt line counts as a genuine sale if it is itemised (has an inventory /
+   non-inventory item) OR it posts to a Profit & Loss (income) account — but NOT if
+   it references AR, capital, loans, transfers or other balance-sheet items.
+   When the P&L account list is loaded, plain account lines must belong to it
+   (so loans/capital posted to balance-sheet accounts are excluded). */
+function receiptLineIsSale(ln) {
+  if (lineItemKey(ln)) return true;
+  if (isNonSalesReceiptLine(ln)) return false;
+  if (ln.account) {
+    if (_plLoaded && _plAccountKeys.size) return _plAccountKeys.has(ln.account);
+    return true; // P&L list unavailable → best-effort include plain account lines
+  }
+  return false;
+}
+
+/* Line value in base currency. Uses qty×price−discount, falling back to the
+   line amount for lines without qty/price (e.g. account-based cash sales). */
+function lineRevenueBase(rec, ln) {
+  const qty   = Number(ln.qty) || 0;
+  const price = Number(ln.salesUnitPrice) || 0;
+  let disc    = Number(ln.discountAmount) || 0;
+  if (!disc && ln.discountPercentage) disc = qty * price * (Number(ln.discountPercentage) / 100);
+  const base  = (qty && price) ? (qty * price - disc) : (Number(ln.amount) || 0);
+  return fxConvert(rec, base);
+}
+
+/* Filter receipts by the active date filters (receipts use `date`) */
+function filterReceipts(receipts, year, selMonths, startDate, endDate) {
+  const hasRange   = !!(startDate || endDate);
+  const yearActive = year && year !== 'all' && !hasRange;
+  return receipts.filter(r => {
+    const ds = r.item?.date;
+    const d = parseDate(ds);
+    if (!d) return false;
+    if (yearActive && d.year !== parseInt(year)) return false;
+    if (selMonths.length && !selMonths.includes(d.month)) return false;
+    const day = (ds || '').substring(0, 10);
+    if (startDate && day < startDate) return false;
+    if (endDate && day > endDate) return false;
+    return true;
+  });
+}
+
+/* Display label / code for a stat row — resolves inventory/non-inventory item
+   names and P&L account names when available. */
 function itemLabel(s) {
   if (s.itemKey && _itemNameCache[s.itemKey]) return _itemNameCache[s.itemKey].name;
+  if (s.accountKey && _accountNameCache[s.accountKey]) return _accountNameCache[s.accountKey].name;
   return s.fallbackLabel;
 }
 function itemCode(s) {
-  return (s.itemKey && _itemNameCache[s.itemKey]?.code) || '';
+  if (s.itemKey && _itemNameCache[s.itemKey]?.code) return _itemNameCache[s.itemKey].code;
+  if (s.accountKey && _accountNameCache[s.accountKey]?.code) return _accountNameCache[s.accountKey].code;
+  return '';
 }
 
 /* Build per-item statistics from filtered invoices */
-function computeItemStats(items) {
+function computeItemStats(invoices, receipts, sourceFilter) {
   const map = {};
   let totalRevenue = 0, totalQty = 0;
   const monthSet = new Set();
+  const srcTotals = { invoice: { rev: 0, qty: 0, docs: new Set() }, receipt: { rev: 0, qty: 0, docs: new Set() } };
 
-  for (const inv of items) {
-    const lines = inv.item?.lines || [];
-    if (!lines.length) continue;
-    const d  = parseDate(inv.item?.issueDate);
+  function ingest(rec, source, dateStr, lines, isReceipt) {
+    const d  = parseDate(dateStr);
     const mk = d ? `${d.year}-${String(d.month).padStart(2,'0')}` : null;
     if (mk) monthSet.add(mk);
-    const invId = inv.item?.key || inv.key || inv.item?.reference || JSON.stringify(inv.item?.issueDate) + '|' + Math.random();
+    const recId = rec.item?.key || rec.key || (source + '|' + dateStr + '|' + Math.random());
+    const ref   = rec.item?.reference || '';
+    let counted = false;
 
     for (const ln of lines) {
-      const qty   = Number(ln.qty) || 0;
-      const price = Number(ln.salesUnitPrice) || 0;
-      let disc    = Number(ln.discountAmount) || 0;
-      if (!disc && ln.discountPercentage) disc = qty * price * (Number(ln.discountPercentage) / 100);
-      const rev   = fxConvert(inv, qty * price - disc);
-      if (!qty && !rev) continue; // skip blank lines
-
+      if (isReceipt && !receiptLineIsSale(ln)) continue;
       const ik   = lineItemKey(ln);
+      const acct = (!ik && ln.account) ? ln.account : null;
       const desc = lineDesc(ln);
-      const key  = ik ? ('id:' + ik) : (desc ? ('d:' + desc.toLowerCase()) : 'unspecified');
+      const qty  = Number(ln.qty) || 0;
+      const rev  = lineRevenueBase(rec, ln);
+      if (!qty && !rev) continue;
+
+      let key, itemKey = null, fallbackLabel;
+      if (ik)        { key = 'id:' + ik;   itemKey = ik; fallbackLabel = desc || 'Item ' + String(ik).slice(0, 8); }
+      else if (acct) { key = 'acct:' + acct;            fallbackLabel = desc || 'Income account ••' + String(acct).slice(0, 4); }
+      else if (desc) { key = 'd:' + desc.toLowerCase(); fallbackLabel = desc; }
+      else           { key = 'unspecified';             fallbackLabel = 'Unspecified / non-item line'; }
 
       let s = map[key];
-      if (!s) {
-        s = map[key] = {
-          key, itemKey: ik || null,
-          fallbackLabel: desc || (ik ? 'Item ' + String(ik).slice(0, 8) : 'Unspecified / non-item line'),
-          revenue: 0, qty: 0, invoices: new Set(), monthly: {}, prices: []
-        };
-      }
-      s.revenue += rev;
-      s.qty     += qty;
-      s.invoices.add(invId);
+      if (!s) s = map[key] = {
+        key, itemKey, accountKey: acct || null, isAccount: !!acct, fallbackLabel,
+        revenue: 0, qty: 0, records: new Set(), monthly: {}, prices: [],
+        src: { invoice: 0, receipt: 0 }, srcQty: { invoice: 0, receipt: 0 }, txns: []
+      };
+      s.revenue += rev; s.qty += qty; s.records.add(recId);
       if (mk) s.monthly[mk] = (s.monthly[mk] || 0) + rev;
       if (qty > 0) s.prices.push({ mk, unit: rev / qty, qty });
-      totalRevenue += rev;
-      totalQty     += qty;
+      s.src[source] += rev; s.srcQty[source] += qty;
+      if (s.txns.length < 600) s.txns.push({ date: (dateStr || '').substring(0, 10), source, ref, qty, unit: qty ? rev / qty : null, amount: rev });
+
+      totalRevenue += rev; totalQty += qty;
+      srcTotals[source].rev += rev; srcTotals[source].qty += qty;
+      counted = true;
     }
+    if (counted) srcTotals[source].docs.add(recId);
   }
+
+  if (sourceFilter !== 'receipt') for (const inv of invoices) { const l = inv.item?.lines || []; if (l.length) ingest(inv, 'invoice', inv.item?.issueDate, l, false); }
+  if (sourceFilter !== 'invoice') for (const r of receipts)   { const l = r.item?.lines   || []; if (l.length) ingest(r,   'receipt', r.item?.date,      l, true);  }
 
   const monthsSorted = [...monthSet].sort();
   const stats = Object.values(map).map(s => {
-    s.invoiceCount = s.invoices.size;
+    s.docCount = s.records.size;
     s.avgPrice = s.qty ? s.revenue / s.qty : 0;
+    s.txns.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
     // Price change: weighted avg unit price in earliest vs latest active month
     const byMonth = {};
@@ -2295,14 +2456,17 @@ function computeItemStats(items) {
       s.priceFirst = fAvg; s.priceLast = lAvg;
       s.priceFirstMonth = pm[0]; s.priceLastMonth = pm[pm.length-1];
       s.priceChangePct = fAvg ? ((lAvg - fAvg) / fAvg * 100) : null;
-      s.priceMonths = pm.length;
     } else {
       s.priceChangePct = null;
     }
     return s;
   });
 
-  return { stats, totalRevenue, totalQty, monthsSorted };
+  const srcSummary = {
+    invoice: { rev: srcTotals.invoice.rev, qty: srcTotals.invoice.qty, docs: srcTotals.invoice.docs.size },
+    receipt: { rev: srcTotals.receipt.rev, qty: srcTotals.receipt.qty, docs: srcTotals.receipt.docs.size },
+  };
+  return { stats, totalRevenue, totalQty, monthsSorted, srcSummary };
 }
 
 /* Tiny inline SVG sparkline */
@@ -2325,73 +2489,100 @@ function priceBadge(s) {
   return `<span class="price-chip ${cls}" title="${fmtKWD(s.priceFirst)} (${s.priceFirstMonth}) → ${fmtKWD(s.priceLast)} (${s.priceLastMonth})">${arr} ${Math.abs(p).toFixed(1)}%</span>`;
 }
 
-function buildItemisedAnalysis(items) {
-  const res = computeItemStats(items);
+function buildItemisedAnalysis(invoices, receipts) {
+  invoices = invoices || []; receipts = receipts || [];
+  const res = computeItemStats(invoices, receipts, _itemSource);
   _itemStatsCache = res;
-  const { stats, totalRevenue, totalQty, monthsSorted } = res;
+  const { stats, totalRevenue, totalQty, monthsSorted, srcSummary } = res;
 
-  if (!stats.length || (stats.length === 1 && stats[0].key === 'unspecified')) {
-    return `<div class="item-empty">📦 No itemised line data found for this selection.<br>
-      <span style="font-size:12.5px">These invoices may not contain product/service line items, or fall outside the current filter.</span></div>`;
+  const realStats = stats.filter(s => s.key !== 'unspecified');
+  if (!realStats.length) {
+    return `<div class="item-empty">📦 No sales line data found for this selection.<br>
+      <span style="font-size:12.5px">No itemised or income-account lines in the chosen invoices/receipts and date range.</span></div>`;
   }
 
   const sortKey = _itemSortKey;
   const sorted = [...stats].sort((a,b) => (b[sortKey]||0) - (a[sortKey]||0));
+  _drillRows = sorted.slice(0, 25);
   const topItem = sorted[0];
   const topShare = totalRevenue ? (topItem.revenue / totalRevenue * 100) : 0;
 
-  // ── Summary cards ──
   let html = `<div class="item-note" id="item-name-note"></div>`;
-  html += `<div class="summary-grid">
-    <div class="summary-card blue"><div class="sc-label">Distinct Items</div><div class="sc-value">${stats.length}</div><div class="sc-sub">products / services sold</div></div>
-    <div class="summary-card green"><div class="sc-label">Line Revenue</div><div class="sc-value">${fmtKWD(totalRevenue)}</div><div class="sc-sub">sum of all line items</div></div>
-    <div class="summary-card amber"><div class="sc-label">Total Units</div><div class="sc-value">${fmtKWD(totalQty)}</div><div class="sc-sub">quantity sold</div></div>
-    <div class="summary-card purple"><div class="sc-label">Top Item</div><div class="sc-value" style="font-size:15px">${escHTML(itemLabel(topItem))}</div><div class="sc-sub">${topShare.toFixed(1)}% of revenue</div></div>
+
+  // ── Source filter ──
+  const srcBtn = (id, lbl) => `<button class="seg-btn ${_itemSource===id?'active':''}" onclick="setItemSource('${id}')">${lbl}</button>`;
+  html += `<div class="src-filter">
+    <span class="src-filter-lbl">Sales source:</span>
+    <div class="seg">${srcBtn('all','All sales')}${srcBtn('invoice','Invoices only')}${srcBtn('receipt','Cash receipts only')}</div>
+    ${!_receiptsLoaded ? `<span class="src-warn">⚠ Receipts not loaded — showing invoices only. Press Reload.</span>` : ''}
   </div>`;
 
-  // ── Top items: chart + sortable table ──
+  // ── How receipts are counted (transparency) ──
+  if (_receiptsLoaded && _itemSource !== 'invoice') {
+    html += `<div style="font-size:11.5px;color:var(--muted);background:var(--light);border-radius:8px;padding:8px 12px;margin:-6px 0 14px;line-height:1.5">
+      💡 <strong>Cash receipts are included only when genuinely sales:</strong> a line is counted if it's an itemised product/service, or posts to a
+      ${_plLoaded ? `Profit&nbsp;&amp;&nbsp;Loss income account (verified against ${_plAccountKeys.size} P&amp;L accounts)` : `plain income account`}.
+      Invoice settlements, loans, capital contributions, inter-account transfers and other balance-sheet receipts are excluded to avoid double-counting${!_plLoaded ? ` <span style="color:var(--amber)">— reload to verify against the chart of accounts</span>` : ''}.
+    </div>`;
+  }
+
+  // ── Summary cards ──
+  html += `<div class="summary-grid">
+    <div class="summary-card blue"><div class="sc-label">Total Sales</div><div class="sc-value">${fmtKWD(totalRevenue)}</div><div class="sc-sub">${stats.length} distinct items</div></div>
+    <div class="summary-card green"><div class="sc-label">Total Units</div><div class="sc-value">${fmtKWD(totalQty)}</div><div class="sc-sub">quantity sold</div></div>
+    <div class="summary-card amber"><div class="sc-label">From Invoices</div><div class="sc-value">${fmtKWD(srcSummary.invoice.rev)}</div><div class="sc-sub">${srcSummary.invoice.docs} invoices</div></div>
+    <div class="summary-card purple"><div class="sc-label">From Cash Receipts</div><div class="sc-value">${fmtKWD(srcSummary.receipt.rev)}</div><div class="sc-sub">${srcSummary.receipt.docs} receipts</div></div>
+  </div>`;
+
+  // ── Sales summary by source (amounts & quantities) ──
+  html += buildSourceSummary(srcSummary, totalRevenue, totalQty);
+
+  // ── Top items: chart + sortable, drill-down table ──
   html += `<div class="item-section">
     <h3>🏆 Top-Selling Items</h3>
-    <div class="sub">Ranked by ${sortKey === 'revenue' ? 'revenue' : 'units sold'}. Sparkline shows each item's revenue trend across the selected period.</div>
+    <div class="sub">Combined from invoices and qualifying cash receipts. Click any row to drill into its transactions. Sparkline shows the revenue trend.</div>
     <div class="tab-bar">
       <button class="tab-btn ${sortKey==='revenue'?'active':''}" onclick="setItemSort('revenue')">By Revenue</button>
       <button class="tab-btn ${sortKey==='qty'?'active':''}" onclick="setItemSort('qty')">By Units</button>
     </div>
     <div class="item-chart-box"><canvas id="chart_item_top"></canvas></div>`;
 
-  // Table (top 25)
   const maxVal = Math.max(...sorted.map(s => s[sortKey] || 0), 1);
-  const rows = sorted.slice(0, 25).map((s, i) => {
-    const trend = monthsSorted.map(mk => s.monthly[mk] || 0);
-    const share = totalRevenue ? (s.revenue / totalRevenue * 100) : 0;
+  const rows = _drillRows.map((s, i) => {
+    const trend  = monthsSorted.map(mk => s.monthly[mk] || 0);
+    const share  = totalRevenue ? (s.revenue / totalRevenue * 100) : 0;
     const barVal = (s[sortKey] || 0) / maxVal * 100;
-    const code = itemCode(s);
-    return `<tr>
-      <td class="item-rank">${i+1}</td>
-      <td><div class="item-name">${escHTML(itemLabel(s))}</div>${code ? `<div class="item-code">${escHTML(code)}</div>` : ''}</td>
+    const code   = itemCode(s);
+    const invPct = s.revenue ? (s.src.invoice / s.revenue * 100) : 0;
+    const srcBar = `<div class="srcsplit" title="Invoices ${fmtKWD(s.src.invoice)} · Cash ${fmtKWD(s.src.receipt)}">
+        <div class="srcsplit-inv" style="width:${invPct}%"></div><div class="srcsplit-rcpt" style="width:${100-invPct}%"></div></div>`;
+    return `<tr class="item-row" onclick="toggleDrill(${i})">
+      <td class="item-rank"><span class="chev" id="chev-${i}">▸</span>${i+1}</td>
+      <td><div class="item-name">${escHTML(itemLabel(s))}${s.isAccount?' <span class="acct-tag">acct</span>':''}</div>${code ? `<div class="item-code">${escHTML(code)}</div>` : ''}</td>
       <td>${sparkline(trend, MONTH_COLORS[i % MONTH_COLORS.length])}</td>
       <td class="num">${fmtKWD(s.revenue)}</td>
       <td class="num">${fmtKWD(s.qty)}</td>
-      <td class="num">${s.invoiceCount}</td>
+      <td class="num">${s.docCount}</td>
+      <td class="src-col">${srcBar}</td>
       <td class="num">${fmtKWD(s.avgPrice)}</td>
       <td>${priceBadge(s)}</td>
       <td class="share-cell"><div class="share-wrap">
         <div class="share-bar-bg"><div class="share-bar" style="width:${barVal.toFixed(1)}%"></div></div>
         <span class="share-pct">${share.toFixed(1)}%</span>
       </div></td>
-    </tr>`;
+    </tr>
+    <tr class="drill-row" id="drill-${i}"><td colspan="10">${drillTable(s)}</td></tr>`;
   }).join('');
 
   html += `<div style="overflow-x:auto;margin-top:14px"><table class="item-table">
     <thead><tr>
       <th>#</th><th>Item</th><th>Trend</th>
-      <th class="num">Revenue</th><th class="num">Units</th><th class="num">Invoices</th>
-      <th class="num">Avg Price</th><th>Price Δ</th><th>Share</th>
+      <th class="num">Revenue</th><th class="num">Units</th><th class="num">Txns</th>
+      <th>Inv / Cash</th><th class="num">Avg Price</th><th>Price Δ</th><th>Share</th>
     </tr></thead><tbody>${rows}</tbody></table>
     ${sorted.length > 25 ? `<div class="sub" style="margin-top:8px">Showing top 25 of ${sorted.length} items.</div>` : ''}
   </div></div>`;
 
-  // ── Item performance across time ──
   if (monthsSorted.length >= 2) {
     html += `<div class="item-section">
       <h3>📈 Item Performance Across Time</h3>
@@ -2400,13 +2591,52 @@ function buildItemisedAnalysis(items) {
     </div>`;
   }
 
-  // ── Revenue concentration ──
   html += buildConcentrationSection(sorted, totalRevenue);
-
-  // ── Price movers ──
   html += buildPriceMovers(stats);
-
   return html;
+}
+
+/* Sales summary by source — amounts and quantities side by side */
+function buildSourceSummary(src, totalRev, totalQty) {
+  const invPct = totalRev ? (src.invoice.rev / totalRev * 100) : 0;
+  const rcptPct = 100 - invPct;
+  return `<div class="item-section">
+    <h3>🧾 Sales Summary — Invoices vs Cash</h3>
+    <div class="sub">Genuine sales only: itemised lines and income-account lines. Invoice settlements, loans, capital and other non-trading receipts are excluded.</div>
+    <div class="ribbon" style="margin-bottom:8px">
+      <div class="ribbon-seg" style="width:${invPct}%;background:var(--blue)" title="Invoices">${invPct>=8?'Invoices '+invPct.toFixed(0)+'%':''}</div>
+      <div class="ribbon-seg" style="width:${rcptPct}%;background:var(--green)" title="Cash receipts">${rcptPct>=8?'Cash '+rcptPct.toFixed(0)+'%':''}</div>
+    </div>
+    <table class="item-table">
+      <thead><tr><th>Source</th><th class="num">Amount</th><th class="num">Units</th><th class="num">Documents</th><th class="num">% of Sales</th></tr></thead>
+      <tbody>
+        <tr><td><span class="src-tag src-invoice">Invoices</span></td><td class="num">${fmtKWD(src.invoice.rev)}</td><td class="num">${fmtKWD(src.invoice.qty)}</td><td class="num">${src.invoice.docs}</td><td class="num">${invPct.toFixed(1)}%</td></tr>
+        <tr><td><span class="src-tag src-receipt">Cash receipts</span></td><td class="num">${fmtKWD(src.receipt.rev)}</td><td class="num">${fmtKWD(src.receipt.qty)}</td><td class="num">${src.receipt.docs}</td><td class="num">${rcptPct.toFixed(1)}%</td></tr>
+        <tr style="font-weight:700;background:var(--light)"><td>Total</td><td class="num">${fmtKWD(totalRev)}</td><td class="num">${fmtKWD(totalQty)}</td><td class="num">${src.invoice.docs+src.receipt.docs}</td><td class="num">100%</td></tr>
+      </tbody>
+    </table>
+  </div>`;
+}
+
+/* Transaction-level drill-down table for one item */
+function drillTable(s) {
+  const txns = s.txns.slice(0, 120);
+  const rows = txns.map(t => `<tr>
+    <td>${t.date || '—'}</td>
+    <td><span class="src-tag src-${t.source}">${t.source === 'invoice' ? 'Invoice' : 'Cash'}</span></td>
+    <td>${escHTML(t.ref || '—')}</td>
+    <td class="num">${t.qty ? fmtKWD(t.qty) : '—'}</td>
+    <td class="num">${t.unit != null ? fmtKWD(t.unit) : '—'}</td>
+    <td class="num">${fmtKWD(t.amount)}</td>
+  </tr>`).join('');
+  return `<div class="drill-wrap">
+    <div class="drill-title">Transactions for this item</div>
+    <table class="drill-table">
+      <thead><tr><th>Date</th><th>Source</th><th>Reference</th><th class="num">Qty</th><th class="num">Unit Price</th><th class="num">Amount</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${s.txns.length > 120 ? `<div class="sub" style="margin-top:6px">Showing 120 of ${s.txns.length} transactions.</div>` : ''}
+  </div>`;
 }
 
 /* Revenue concentration: Pareto, HHI, share ribbon */
