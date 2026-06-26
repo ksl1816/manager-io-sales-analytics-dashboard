@@ -231,6 +231,23 @@ body {
 .main-tab.active { background: var(--blue); border-color: var(--blue); color: #fff; box-shadow: 0 2px 8px rgba(29,111,207,.25); }
 .main-tab .mt-emoji { font-size: 16px; }
 
+/* ── Monthly breakdown: clickable month row ── */
+.month-pills {
+  display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 12px;
+  scrollbar-width: thin;
+}
+.month-pill {
+  flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-start;
+  gap: 2px; padding: 8px 14px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--card); cursor: pointer; min-width: 92px; transition: all .12s;
+  border-top: 3px solid var(--mc, var(--blue));
+}
+.month-pill:hover { box-shadow: 0 2px 8px rgba(0,0,0,.1); transform: translateY(-1px); }
+.month-pill.active { background: var(--mc, var(--blue)); border-color: var(--mc, var(--blue)); }
+.month-pill .mp-name { font-size: 12.5px; font-weight: 700; color: var(--text); white-space: nowrap; }
+.month-pill .mp-total { font-size: 11px; color: var(--muted); }
+.month-pill.active .mp-name, .month-pill.active .mp-total { color: #fff; }
+
 /* ── Itemised Analysis ── */
 .item-note { font-size: 12px; color: var(--muted); margin: -6px 0 14px; min-height: 14px; }
 .item-section {
@@ -1736,6 +1753,8 @@ function indexPLAccounts(list) {
 
 /* ── Itemised Analysis state ── */
 let _activeTab = 'overview';          // 'overview' | 'items'
+let _overviewSource = 'all';          // overview: 'all' | 'invoice' | 'receipt'
+let _activeMonthKey = null;           // monthly breakdown: currently selected month
 let _lastFilteredItems = [];          // items feeding the itemised tab
 let _itemSource = 'all';              // 'all' | 'invoice' | 'receipt'
 let _drillRows = [];                  // current top rows (for drill-down lookup)
@@ -1748,6 +1767,24 @@ function switchMainTab(tab) {
   if (_activeTab === tab) return;
   _activeTab = tab;
   renderWithFilters();
+}
+function setOverviewSource(src) {
+  _overviewSource = src;
+  renderWithFilters();
+}
+function selectMonthKey(key) {
+  _activeMonthKey = key;
+  renderWithFilters();
+}
+/* Source toggle shown at the top of the Overview */
+function buildOverviewSourceToggle() {
+  if (!_receiptsLoaded) return '';
+  const b = (id, lbl) => `<button class="seg-btn ${_overviewSource===id?'active':''}" onclick="setOverviewSource('${id}')">${lbl}</button>`;
+  return `<div class="src-filter">
+    <span class="src-filter-lbl">Sales source:</span>
+    <div class="seg">${b('all','Invoices + Cash')}${b('invoice','Invoices only')}${b('receipt','Cash receipts only')}</div>
+    <span style="font-size:11.5px;color:var(--muted)">Cash sales count only itemised or P&amp;L-income receipt lines${_plLoaded ? '' : ' (reload to verify accounts)'}.</span>
+  </div>`;
 }
 function setItemSort(key) {
   _itemSortKey = key;
@@ -1849,6 +1886,42 @@ function groupByMonth(items) {
   return map;
 }
 
+/* Total genuine sales value of a receipt (qualifying lines only, base currency) */
+function receiptSalesTotal(rec) {
+  const lines = rec.item?.lines || [];
+  let total = 0;
+  for (const ln of lines) {
+    if (!receiptLineIsSale(ln)) continue;
+    total += lineRevenueBase(rec, ln);
+  }
+  return total;
+}
+
+/* Combined day-level grouping across invoices + qualifying cash receipts.
+   source: 'all' | 'invoice' | 'receipt' */
+function groupSales(invoices, receipts, source) {
+  const map = {};
+  const add = (year, month, day, amt) => {
+    if (!amt) return;
+    const key = `${year}-${String(month).padStart(2,'0')}`;
+    if (!map[key]) map[key] = { year, month, days: {} };
+    map[key].days[day] = (map[key].days[day] || 0) + amt;
+  };
+  if (source !== 'receipt') {
+    for (const inv of invoices) {
+      const d = parseDate(inv.item?.issueDate);
+      if (d) add(d.year, d.month, d.day, invoiceTotal(inv));
+    }
+  }
+  if (source !== 'invoice') {
+    for (const r of receipts) {
+      const d = parseDate(r.item?.date);
+      if (d) add(d.year, d.month, d.day, receiptSalesTotal(r));
+    }
+  }
+  return map;
+}
+
 /* ══════════════════════════════════════════════
    MAIN RENDER
 ══════════════════════════════════════════════ */
@@ -1900,12 +1973,9 @@ function renderWithFilters() {
   const startDate   = document.getElementById('start-date')?.value || '';
   const endDate     = document.getElementById('end-date')?.value || '';
 
-  // Filter items
+  // Filter items + receipts
   let filtered = filterItems(ALL_ITEMS, selYear, selMonths, startDate, endDate);
-
-  // Group
-  const grouped = groupByMonth(filtered);
-  const monthKeys = Object.keys(grouped).sort();
+  const filteredReceipts = filterReceipts(ALL_RECEIPTS, selYear, selMonths, startDate, endDate);
 
   // Build HTML
   let html = '';
@@ -1913,7 +1983,7 @@ function renderWithFilters() {
   // ── Filter Panel ──
   html += buildFilterPanel(years, selYear, selMonths, startDate, endDate);
 
-  if (!monthKeys.length) {
+  if (!filtered.length && !filteredReceipts.length) {
     html += `<div class="empty-state">📭 No data for selected filters. Try adjusting year or months.</div>`;
     app.innerHTML = html;
     attachFilterListeners(years);
@@ -1925,13 +1995,23 @@ function renderWithFilters() {
 
   if (_activeTab === 'items') {
     _lastFilteredItems = filtered;
-    const filteredReceipts = filterReceipts(ALL_RECEIPTS, selYear, selMonths, startDate, endDate);
     html += buildItemisedAnalysis(filtered, filteredReceipts);
     app.innerHTML = html;
     attachFilterListeners(years);
     // Build item charts after DOM insert, then lazily resolve real product names
     renderItemCharts();
     resolveItemNames(filtered);
+    return;
+  }
+
+  // ── Overview: combine invoices + qualifying cash receipts ──
+  html += buildOverviewSourceToggle();
+  const grouped = groupSales(filtered, filteredReceipts, _overviewSource);
+  const monthKeys = Object.keys(grouped).sort();
+  if (!monthKeys.length) {
+    html += `<div class="empty-state">No sales for the selected source in this date range.</div>`;
+    app.innerHTML = html;
+    attachFilterListeners(years);
     return;
   }
 
@@ -2170,16 +2250,28 @@ function buildMonthlyBreakdownSection(grouped, monthKeys, hiddenMonths, sectionV
   let visibleKeys = monthKeys.filter(k => !hiddenMonths.has(k));
   let hiddenCount = monthKeys.length - visibleKeys.length;
 
-  let monthsHtml = '';
-  for (const key of visibleKeys) {
-    monthsHtml += buildMonthBlockV2(grouped[key], key);
-  }
-  if (!monthsHtml) {
-    monthsHtml = `<div class="empty-state" style="padding:24px">All months are hidden. <button class="apply-btn" onclick="showAllMonths()" style="margin-left:8px">Show All</button></div>`;
+  // Resolve active month (default: most recent visible)
+  if (!_activeMonthKey || !visibleKeys.includes(_activeMonthKey)) {
+    _activeMonthKey = visibleKeys[visibleKeys.length - 1] || null;
   }
 
+  // Clickable single-row month selector
+  const pills = visibleKeys.map(key => {
+    const m = grouped[key];
+    const total = Object.values(m.days).reduce((a,b) => a+b, 0);
+    const active = key === _activeMonthKey ? 'active' : '';
+    return `<button class="month-pill ${active}" style="--mc:${MONTH_COLORS[m.month]}" onclick="selectMonthKey('${key}')">
+      <span class="mp-name">${MONTH_ABBR[m.month]} ${m.year}</span>
+      <span class="mp-total">${fmtShort(total)}</span>
+    </button>`;
+  }).join('');
+
+  const detail = _activeMonthKey
+    ? buildMonthBlockV2(grouped[_activeMonthKey], _activeMonthKey)
+    : `<div class="empty-state" style="padding:24px">All months are hidden. <button class="apply-btn" onclick="showAllMonths()" style="margin-left:8px">Show All</button></div>`;
+
   const hiddenNote = hiddenCount > 0
-    ? `<span style="font-size:12px;color:var(--muted)">${hiddenCount} month(s) hidden</span>`
+    ? `<span style="font-size:12px;color:var(--muted)">${hiddenCount} hidden</span>`
     : '';
 
   return `
@@ -2190,7 +2282,8 @@ function buildMonthlyBreakdownSection(grouped, monthKeys, hiddenMonths, sectionV
     ${hiddenNote}
   </div>
   <div id="monthly-section-wrap" style="${sectionVisible ? '' : 'display:none'}">
-    ${monthsHtml}
+    <div class="month-pills">${pills}</div>
+    ${detail}
   </div>`;
 }
 
