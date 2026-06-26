@@ -219,6 +219,7 @@ body {
 /* ── Main view tabs ── */
 .main-tabs-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
 .topbar-src { display: flex; align-items: center; gap: 8px; }
+.topbar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .main-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* ── Per-section PDF button ── */
@@ -2195,10 +2196,34 @@ function attachFilterListeners(years) {
 /* ══════════════════════════════════════════════
    PER-SECTION PDF / PRINT
 ══════════════════════════════════════════════ */
-function buildSectionPrintBar(title, id) {
-  return `<div class="section-print-bar no-print">
-    <button class="print-sec-btn" onclick="printSection('${id}', '${title.replace(/'/g,"\\'")}')">🖨 Save as PDF</button>
-  </div>`;
+function buildSectionPrintBar(title, id) { return ''; } // consolidated into one top-bar button
+
+/* Print the entire current view (all sections) to one clean PDF */
+function printReport() {
+  const el = document.getElementById('app');
+  if (!el) return;
+  const clone = el.cloneNode(true);
+  const live = el.querySelectorAll('canvas');
+  const cloned = clone.querySelectorAll('canvas');
+  live.forEach((c, i) => {
+    try {
+      const img = document.createElement('img');
+      img.src = c.toDataURL('image/png');
+      img.style.maxWidth = '100%';
+      if (cloned[i]) cloned[i].replaceWith(img);
+    } catch (e) {}
+  });
+  const title = _activeTab === 'items' ? 'Itemised Sales Analysis' : 'Sales Overview';
+  const w = window.open('', '_blank');
+  if (!w) { alert('Please allow pop-ups to save as PDF.'); return; }
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>
+    <style>${printStyles()}</style></head><body>
+    <div class="print-head"><div class="ph-title">${title}</div>
+      <div class="ph-sub">${escHTML(currentFilterLabel())} · Generated ${new Date().toLocaleString()}</div></div>
+    ${clone.outerHTML}
+    </body></html>`);
+  w.document.close();
+  setTimeout(() => { try { w.focus(); w.print(); } catch(e){} }, 450);
 }
 
 function currentFilterLabel() {
@@ -2218,7 +2243,8 @@ function printStyles() {
     .print-head { margin-bottom:16px; border-bottom:3px solid #1d6fcf; padding-bottom:10px; }
     .ph-title { font-size:22px; font-weight:800; color:#0f172a; }
     .ph-sub { font-size:12px; color:#64748b; margin-top:2px; }
-    .section-print-bar, .btn-edit-row, .btn-hide-month, .month-header-actions, .no-print { display:none !important; }
+    .section-print-bar, .btn-edit-row, .btn-hide-month, .month-header-actions, .no-print,
+    .filter-panel, .main-tabs-bar, .month-pills, .src-filter, .tab-bar { display:none !important; }
     .month-body-collapsible { max-height:none !important; }
     .drill-row { display:table-row !important; }
     @page { size: A4; margin: 12mm; }
@@ -2544,7 +2570,10 @@ function buildMainTabs() {
   }
   return `<div class="main-tabs-bar">
     <div class="main-tabs">${tabBtns}</div>
-    ${srcToggle}
+    <div class="topbar-right">
+      ${srcToggle}
+      <button class="print-sec-btn no-print" onclick="printReport()">🖨 Save as PDF</button>
+    </div>
   </div>`;
 }
 
@@ -3327,13 +3356,6 @@ function buildComparisonSection(grouped, monthKeys) {
   <div class="section-header">🔀 Month-to-Month Comparison <span class="badge" style="background:var(--purple-lt);color:var(--purple)">${monthKeys.length} months</span></div>
   <div class="comparison-block">
     ${buildHeatmap(grouped, monthKeys)}
-    <div class="section-header" style="margin-top:18px;font-size:14px">📆 Day-to-Day Comparison</div>
-    <div class="day-compare-wrap">
-      <table class="day-compare-table">
-        <thead><tr>${thCells}</tr></thead>
-        <tbody>${dayRows}</tbody>
-      </table>
-    </div>
     <div class="section-header" style="margin-top:18px;font-size:14px">📊 Performance Summary</div>
     <div class="perf-grid">${perfCards}</div>
   </div>
