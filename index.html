@@ -540,6 +540,19 @@ body {
 }
 .acct-info button:hover { border-color: var(--blue); color: var(--blue); }
 
+.acct-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 16px; margin-bottom: 12px;
+  background: var(--blue-lt); border: 1px solid #93c5fd; border-radius: 10px;
+  font-size: 13px; color: var(--text); font-weight: 600;
+}
+.acct-bar button {
+  padding: 6px 16px; border: 1px solid var(--blue); border-radius: 8px;
+  background: #fff; color: var(--blue); font-size: 12px; font-weight: 700;
+  cursor: pointer; white-space: nowrap;
+}
+.acct-bar button:hover { background: var(--blue); color: #fff; }
+
 .btn-hire {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 6px 14px; border-radius: 7px;
@@ -1152,15 +1165,17 @@ body {
     <span id="conn-text">Checking…</span>
   </div>
   <div class="hdr-right">
-    <div class="acct-info" id="acctInfo" style="display:none">
-      <span id="acctInfoText"></span>
-      <button type="button" id="acctInfoLogout">Log out</button>
-    </div>
     <button class="btn-hire" onclick="openHireModal()" title="Need a custom extension built? Contact us.">
       <span class="btn-hire-icon">💼</span>
       <span>Need Custom Dev?</span>
     </button>
   </div>
+</div>
+
+<!-- ══ Account Bar — always its own row, can't get crowded out ══ -->
+<div class="acct-bar" id="acctInfo" style="display:none">
+  <span id="acctInfoText"></span>
+  <button type="button" id="acctInfoLogout">Log out</button>
 </div>
 
 <!-- ══ Control Bar ══ -->
