@@ -6,12 +6,19 @@
 <!-- ═══════════════ SECURITY HEADERS ═══════════════
      • CSP locks down what can run/load in this page
      • cdnjs is whitelisted because Chart.js is loaded from there
-     • Nothing else can make network calls from this page
+     • gstatic.com is whitelisted for the Firebase SDK (account login)
+     • googleapis.com / firebaseio.com are whitelisted so Firebase Auth
+       and Firestore can reach Google's servers for the login system —
+       this is the ONLY network access this extension makes; it does not
+       reach Manager.io's own API over the network (that stays postMessage-only)
 ═══════════════════════════════════════════════════ -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'none'; frame-ancestors *; form-action 'none'; base-uri 'self';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://www.gstatic.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; frame-ancestors *; form-action 'none'; base-uri 'self';">
 <meta name="referrer" content="no-referrer">
 <title>Sales Analysis — v2.0</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -63,6 +70,40 @@ body {
 .status-text   { font-size: 12px; color: var(--muted); white-space: nowrap; }
 .error-box { color: var(--red); background: var(--red-lt); border: 1px solid #fca5a5;
   border-radius: 8px; padding: 12px 16px; font-size: 13px; margin-bottom: 16px; }
+
+/* ── Access Gate ── */
+.gate-overlay{
+  position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #0f172a, #1e293b); padding: 20px;
+}
+.gate-overlay.unlocked{ display: none; }
+.gate-card{
+  background: var(--card); border-radius: 16px; padding: 36px; max-width: 420px; width: 100%;
+  box-shadow: 0 20px 60px rgba(0,0,0,.35);
+}
+.gate-icon{ font-size: 34px; text-align: center; margin-bottom: 10px; }
+.gate-title{ font-size: 20px; font-weight: 800; text-align: center; color: var(--text); margin-bottom: 8px; }
+.gate-sub{ font-size: 13px; color: var(--muted); text-align: center; line-height: 1.5; margin-bottom: 22px; }
+.gate-row{ margin-bottom: 14px; }
+.gate-label{ display: block; font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.gate-input{
+  width: 100%; padding: 10px 13px; border-radius: 8px; border: 1px solid var(--border);
+  font-size: 13.5px; font-family: inherit; background: var(--light); color: var(--text);
+}
+.gate-input:focus{ outline: none; border-color: var(--blue); background: #fff; }
+.gate-error{ font-size: 12px; color: var(--red); margin-bottom: 10px; display: none; }
+.gate-submit{
+  width: 100%; padding: 12px; border: none; border-radius: 10px; cursor: pointer;
+  background: var(--blue); color: #fff; font-size: 14px; font-weight: 700;
+}
+.gate-submit:hover{ opacity: .9; }
+.gate-footer{ font-size: 12px; color: var(--muted); text-align: center; margin-top: 16px; }
+.gate-footer a{ color: var(--blue); font-weight: 600; text-decoration: none; }
+.gate-tabs{ display: flex; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+.gate-tab{ flex: 1; text-align: center; padding: 10px 0; font-size: 13px; font-weight: 700; color: var(--muted); border-bottom: 2px solid transparent; cursor: pointer; }
+.gate-tab.active{ color: var(--blue); border-color: var(--blue); }
+.gate-panel{ display: none; }
+.gate-panel.active{ display: block; }
 
 /* ── FX Conversion Notice ── */
 .fx-notice {
@@ -1025,6 +1066,57 @@ body {
 </head>
 <body>
 
+<!-- ══ ACCESS GATE ══
+     Real account system: same Firebase project (ksl-solutions) used on the
+     KSL website, so an account created here also works on the site and
+     vice versa. Free to create — no approval needed. ══ -->
+<div class="gate-overlay" id="gateOverlay">
+  <div class="gate-card">
+    <div class="gate-icon">🔐</div>
+    <h2 class="gate-title">Sign in to continue</h2>
+    <p class="gate-sub">Free to use — create an account once, then log in any time. Same account works on the KSL website too.</p>
+    <div class="gate-tabs">
+      <div class="gate-tab active" id="gateTabSignup">Create Account</div>
+      <div class="gate-tab" id="gateTabLogin">Log In</div>
+    </div>
+
+    <form id="signupGateForm" class="gate-panel active">
+      <div class="gate-row">
+        <label class="gate-label" for="gsName">Full Name</label>
+        <input class="gate-input" type="text" id="gsName" placeholder="e.g. Ahmed Khan" required>
+      </div>
+      <div class="gate-row">
+        <label class="gate-label" for="gsEmail">Email</label>
+        <input class="gate-input" type="email" id="gsEmail" placeholder="you@example.com" required>
+      </div>
+      <div class="gate-row">
+        <label class="gate-label" for="gsPassword">Password</label>
+        <input class="gate-input" type="password" id="gsPassword" placeholder="At least 6 characters" minlength="6" required>
+      </div>
+      <div class="gate-error" id="gsError"></div>
+      <button type="submit" class="gate-submit">Create Account & Enter</button>
+    </form>
+
+    <form id="loginGateForm" class="gate-panel">
+      <div class="gate-row">
+        <label class="gate-label" for="glEmail">Email</label>
+        <input class="gate-input" type="email" id="glEmail" placeholder="you@example.com" required>
+      </div>
+      <div class="gate-row">
+        <label class="gate-label" for="glPassword">Password</label>
+        <input class="gate-input" type="password" id="glPassword" placeholder="Your password" required>
+      </div>
+      <div class="gate-error" id="glError"></div>
+      <button type="submit" class="gate-submit">Log In & Enter</button>
+    </form>
+
+    <div class="gate-footer" id="gateFallback" style="display:none">
+      Sign-up isn't connected yet — message us on
+      <a href="https://wa.me/923458696636?text=Hi%20KSL%2C%20I%27d%20like%20to%20register%20for%20the%20Sales%20Analytics%20extension." target="_blank" rel="noopener">WhatsApp</a> instead.
+    </div>
+  </div>
+</div>
+
 <!-- ══ App Header — branding + status + utility ══ -->
 <div class="app-header">
   <div class="brand-wrap">
@@ -1488,6 +1580,110 @@ body {
 
 <script>
 /* ══════════════════════════════════════════════
+   ACCESS GATE — real Firebase account system
+   Same Firebase project (ksl-solutions) as the KSL website, so accounts
+   are shared between the site and this extension. Free to create.
+══════════════════════════════════════════════ */
+const firebaseConfig = {
+  apiKey: "AIzaSyAB2tEp15hwxawWKeuiwiq1-XYxpX6gZik",
+  authDomain: "ksl-solutions.firebaseapp.com",
+  projectId: "ksl-solutions",
+  storageBucket: "ksl-solutions.firebasestorage.app",
+  messagingSenderId: "284806677972",
+  appId: "1:284806677972:web:281bc01a2aa9cb7ec04241"
+};
+
+let fbReady = false;
+let auth, db;
+try {
+  firebase.initializeApp(firebaseConfig);
+  auth = firebase.auth();
+  db = firebase.firestore();
+  fbReady = true;
+} catch (err) {
+  console.warn('Firebase not available:', err);
+  const fb = document.getElementById('gateFallback');
+  if (fb) fb.style.display = 'block';
+}
+
+function unlockGate() {
+  const overlay = document.getElementById('gateOverlay');
+  if (overlay) overlay.classList.add('unlocked');
+}
+function lockGate() {
+  const overlay = document.getElementById('gateOverlay');
+  if (overlay) overlay.classList.remove('unlocked');
+}
+
+// ── Tabs ──
+const gateTabSignup = document.getElementById('gateTabSignup');
+const gateTabLogin = document.getElementById('gateTabLogin');
+const signupGateForm = document.getElementById('signupGateForm');
+const loginGateForm = document.getElementById('loginGateForm');
+function showGateSignup(){
+  gateTabSignup.classList.add('active'); gateTabLogin.classList.remove('active');
+  signupGateForm.classList.add('active'); loginGateForm.classList.remove('active');
+}
+function showGateLogin(){
+  gateTabLogin.classList.add('active'); gateTabSignup.classList.remove('active');
+  loginGateForm.classList.add('active'); signupGateForm.classList.remove('active');
+}
+if (gateTabSignup) gateTabSignup.addEventListener('click', showGateSignup);
+if (gateTabLogin) gateTabLogin.addEventListener('click', showGateLogin);
+
+// ── Create account ──
+const gsError = document.getElementById('gsError');
+if (signupGateForm) {
+  signupGateForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!fbReady) return;
+    const name = document.getElementById('gsName').value.trim();
+    const email = document.getElementById('gsEmail').value.trim();
+    const password = document.getElementById('gsPassword').value;
+    gsError.style.display = 'none';
+    try {
+      const cred = await auth.createUserWithEmailAndPassword(email, password);
+      await cred.user.updateProfile({ displayName: name });
+      await db.collection('users').doc(cred.user.uid).set({
+        name, email,
+        source: 'sales-analytics-extension',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+      signupGateForm.reset();
+    } catch (err) {
+      gsError.textContent = err.message.replace('Firebase: ', '');
+      gsError.style.display = 'block';
+    }
+  });
+}
+
+// ── Log in ──
+const glError = document.getElementById('glError');
+if (loginGateForm) {
+  loginGateForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!fbReady) return;
+    const email = document.getElementById('glEmail').value.trim();
+    const password = document.getElementById('glPassword').value;
+    glError.style.display = 'none';
+    try {
+      await auth.signInWithEmailAndPassword(email, password);
+      loginGateForm.reset();
+    } catch (err) {
+      glError.textContent = err.message.replace('Firebase: ', '');
+      glError.style.display = 'block';
+    }
+  });
+}
+
+// ── Persist session across visits ──
+if (fbReady) {
+  auth.onAuthStateChanged(user => {
+    if (user) unlockGate(); else lockGate();
+  });
+}
+
+/* ══════════════════════════════════════════════
    SECURITY LAYER — origin pinning + endpoint whitelist
    These primitives gate every API call and every
    piece of data that reaches the DOM.
@@ -1503,6 +1699,57 @@ function updateOriginDisplay() {
   if (MANAGER_ORIGIN) {
     block.classList.remove('pending');
     val.textContent = MANAGER_ORIGIN;
+  }
+  enforceCloudOnlyLicense();
+}
+
+/* ══════════════════════════════════════════════
+   CLOUD-ONLY LICENSE CHECK
+   This extension needs a live Cloud (or Server) Manager.io connection —
+   it was registered for on the KSL website as a Cloud/Server account.
+   Since this extension can't talk to that website's account records
+   (no network access is allowed in here — see the CSP at the top of this
+   file), the real check happens here instead: we look at the actual host
+   this extension is running inside of. Recognized Cloud/Server domains are
+   manager.io, manager.cloud, and accounting.link (and their subdomains) —
+   Desktop and local Server installs are not. If someone registered as "Desktop" (or is simply running the
+   extension from a Desktop/local install regardless of what they claimed
+   at sign-up), the domain won't match and the extension refuses to load
+   — rather than pulling data through a connection it wasn't built for.
+══════════════════════════════════════════════ */
+const CLOUD_HOST_PATTERN = /(^|\.)(manager\.io|manager\.cloud|accounting\.link)$/i;
+let _licenseBlocked = false;
+
+function isCloudOrigin(origin) {
+  try {
+    const host = new URL(origin).hostname;
+    return CLOUD_HOST_PATTERN.test(host);
+  } catch (e) {
+    return false;
+  }
+}
+
+function enforceCloudOnlyLicense() {
+  if (!MANAGER_ORIGIN || _licenseBlocked) return;
+  if (isCloudOrigin(MANAGER_ORIGIN)) return; // ✓ genuine Cloud/Server host — proceed normally
+
+  _licenseBlocked = true;
+  const btn = document.getElementById('load-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Blocked — Desktop install detected'; }
+  setConnectionState('disconnected', 'Cloud account required',
+    'This extension only runs on a Cloud or Server Manager.io account.');
+
+  const app = document.getElementById('app');
+  if (app) {
+    app.innerHTML = `<div class="error-box">
+      🔒 <strong>This extension requires a Cloud or Server Manager.io account.</strong><br>
+      We detected this is running on a Desktop / local install (<code>${escHTML(MANAGER_ORIGIN)}</code>),
+      not a recognized Cloud domain (manager.io, manager.cloud, or accounting.link). If you registered
+      on our website as a Desktop user, this extension isn't included in that tier —
+      <a href="https://wa.me/923458696636?text=Hi%20KSL%2C%20my%20account%20shows%20as%20Desktop%20but%20I%27d%20like%20to%20use%20the%20Sales%20Analytics%20extension." target="_blank" rel="noopener">message us on WhatsApp</a>
+      to talk about upgrading to Cloud.
+      <br><br><small>If this looks wrong and you believe you're on a genuine Cloud account on a domain we haven't listed yet, contact us with the address shown above.</small>
+    </div>`;
   }
 }
 
@@ -1687,6 +1934,7 @@ async function getBatchSalesInvoice(onProgress) {
    loadAllRecords — wired to the Load button
 ══════════════════════════════════════════════ */
 async function loadAllRecords() {
+  if (_licenseBlocked) return; // Cloud-only license check already blocked this session
   const btn    = document.getElementById('load-btn');
   const bar    = document.getElementById('prog-bar');
   const status = document.getElementById('status-text');
@@ -2028,6 +2276,14 @@ function renderWithFilters() {
     return;
   }
 
+  if (_activeTab === 'customers') {
+    html += buildCustomerAnalysis(filtered);
+    app.innerHTML = html;
+    attachFilterListeners(years);
+    renderCustomerChart();
+    return;
+  }
+
   // ── Overview: combine invoices + qualifying cash receipts ──
   const grouped = groupSales(filtered, filteredReceipts, _overviewSource);
   const monthKeys = Object.keys(grouped).sort();
@@ -2061,7 +2317,9 @@ function renderWithFilters() {
   html += buildInsights(grouped, monthKeys);
 
   // ── Coming Soon ──
-  html += buildComingSoon();
+  // Customer Analysis has shipped (now its own tab) — nothing left in the
+  // roadmap to show right now, so the "Coming Soon" block is skipped.
+  // html += buildComingSoon();
 
   app.innerHTML = html;
 
@@ -2554,6 +2812,7 @@ function buildMainTabs() {
   const tabs = [
     { id: 'overview', emoji: '📊', label: 'Overview' },
     { id: 'items',    emoji: '📦', label: 'Itemised Analysis' },
+    { id: 'customers',emoji: '👥', label: 'Customer Analysis' },
   ];
   const tabBtns = tabs.map(t =>
     `<div class="main-tab ${_activeTab===t.id?'active':''}" onclick="switchMainTab('${t.id}')">
@@ -3216,6 +3475,237 @@ function indexInventory(list) {
 }
 
 /* ══════════════════════════════════════════════
+   CUSTOMER ANALYSIS
+   NOTE: Manager.io's sales-invoice-batch view is expected to carry the
+   customer's display name directly on the invoice (unlike inventory items,
+   which only carry a UUID and need separate resolution). This reads the
+   first field that's actually present. If your invoices come back with
+   "Unspecified Customer" for everything, open the browser console, run
+   console.log(ALL_ITEMS[0]) inside Manager.io, and check what the real
+   field is called — then adjust getCustomerName() below.
+══════════════════════════════════════════════ */
+function getCustomerName(inv) {
+  const it = inv.item || {};
+  // Broadened set of field names actually seen across different Manager.io
+  // API view shapes — checked in likely-to-least-likely order.
+  const raw = it.customer ?? it.customerName ?? it.customer?.name ?? it.customerKey?.name
+    ?? it.billTo ?? it.contact ?? it.contactName ?? it.clientName ?? it.soldTo
+    ?? inv.customerName ?? inv.customer;
+  if (raw && typeof raw === 'object') {
+    return raw.name || raw.itemName || raw.value || 'Unspecified Customer';
+  }
+  return (typeof raw === 'string' && raw.trim()) ? raw.trim() : 'Unspecified Customer';
+}
+
+// If every (or nearly every) invoice fails to resolve a customer name, the
+// field name guessed above doesn't match this Manager.io instance's actual
+// response shape. Rather than fail silently, surface the real field names
+// available on an actual invoice so this can be fixed in one edit instead
+// of requiring the browser console.
+function diagnoseCustomerFieldIssue(rows, sampleInvoice) {
+  const total = rows.reduce((s, r) => s + r.invoices, 0);
+  const unresolved = rows.find(r => r.name === 'Unspecified Customer');
+  const unresolvedCount = unresolved ? unresolved.invoices : 0;
+  if (!total || unresolvedCount / total < 0.9) return ''; // resolution looks fine, no banner
+
+  const keys = sampleInvoice?.item ? Object.keys(sampleInvoice.item) : [];
+  return `
+    <div class="error-box" style="margin-bottom:18px">
+      ⚠️ <strong>Customer names aren't resolving.</strong> Almost every invoice is showing as
+      "Unspecified Customer," which means the field name this extension looks for doesn't match
+      what your Manager.io instance actually returns.
+      ${keys.length ? `<br><br><strong>Fields actually present on an invoice:</strong>
+      <code style="font-family:ui-monospace,monospace">${keys.join(', ')}</code>
+      <br>Look for whichever one holds the customer's name, then update <code style="font-family:ui-monospace,monospace">getCustomerName()</code>
+      in the code to check that field first.`
+      : `No invoice data was available to inspect field names — load records first, then revisit this tab.`}
+    </div>`;
+}
+
+let _customerRows = [];
+let _customerFirstSeen = null; // cached across ALL_ITEMS, keyed by customer name
+
+function getCustomerFirstSeenMap() {
+  if (_customerFirstSeen) return _customerFirstSeen;
+  const map = {};
+  for (const inv of ALL_ITEMS) {
+    const name = getCustomerName(inv);
+    const d = parseDate(inv.item?.issueDate);
+    if (!d) continue;
+    const ts = new Date(d.year, d.month, d.day).getTime();
+    if (!(name in map) || ts < map[name]) map[name] = ts;
+  }
+  _customerFirstSeen = map;
+  return map;
+}
+
+function buildCustomerAnalysis(filtered) {
+  if (!filtered.length) {
+    return `<div class="empty-state">No invoices in the selected period to analyze.</div>`;
+  }
+
+  const firstSeenMap = getCustomerFirstSeenMap();
+  const byCustomer = {};
+  let rangeStartTs = Infinity;
+
+  for (const inv of filtered) {
+    const name = getCustomerName(inv);
+    const d = parseDate(inv.item?.issueDate);
+    if (!d) continue;
+    const ts = new Date(d.year, d.month, d.day).getTime();
+    rangeStartTs = Math.min(rangeStartTs, ts);
+    if (!byCustomer[name]) byCustomer[name] = { name, revenue: 0, invoices: 0, first: ts, last: ts };
+    const row = byCustomer[name];
+    row.revenue += invoiceTotal(inv);
+    row.invoices += 1;
+    row.first = Math.min(row.first, ts);
+    row.last = Math.max(row.last, ts);
+  }
+
+  const rows = Object.values(byCustomer)
+    .filter(r => r.revenue !== 0 || r.invoices > 0)
+    .sort((a, b) => b.revenue - a.revenue);
+
+  _customerRows = rows;
+
+  const totalRevenue = rows.reduce((s, r) => s + r.revenue, 0);
+  const totalCustomers = rows.length;
+
+  // New = first-ever invoice for that customer falls within this filtered range
+  let newCount = 0, returningCount = 0;
+  for (const r of rows) {
+    const everFirst = firstSeenMap[r.name] ?? r.first;
+    if (everFirst >= rangeStartTs) newCount++; else returningCount++;
+  }
+
+  // Pareto: how many customers make up 80% of revenue
+  let running = 0, paretoCount = 0;
+  for (const r of rows) {
+    if (running >= totalRevenue * 0.8) break;
+    running += r.revenue;
+    paretoCount++;
+  }
+  const paretoPct = totalCustomers ? Math.round((paretoCount / totalCustomers) * 100) : 0;
+
+  const topCustomer = rows[0];
+
+  const summary = `
+    <div class="summary-grid">
+      <div class="summary-card blue">
+        <div class="sc-label">Total Customers</div>
+        <div class="sc-value">${totalCustomers.toLocaleString()}</div>
+      </div>
+      <div class="summary-card green">
+        <div class="sc-label">New Customers</div>
+        <div class="sc-value">${newCount.toLocaleString()}</div>
+        <div class="sc-sub">first purchase in range</div>
+      </div>
+      <div class="summary-card teal">
+        <div class="sc-label">Returning Customers</div>
+        <div class="sc-value">${returningCount.toLocaleString()}</div>
+        <div class="sc-sub">bought before this range too</div>
+      </div>
+      <div class="summary-card purple">
+        <div class="sc-label">Top Customer</div>
+        <div class="sc-value" style="font-size:15px">${escHTML(topCustomer?.name || '—')}</div>
+        <div class="sc-sub">${fmtKWD(topCustomer?.revenue || 0)}</div>
+      </div>
+      <div class="summary-card amber">
+        <div class="sc-label">Revenue Concentration</div>
+        <div class="sc-value">${paretoCount}<span style="font-size:12px;color:var(--muted)"> / ${totalCustomers}</span></div>
+        <div class="sc-sub">${paretoPct}% of customers drive 80% of revenue</div>
+      </div>
+    </div>`;
+
+  const top10 = rows.slice(0, 10);
+  const chart = `
+    <div class="chart-wrap">
+      <div class="chart-title">
+        <span>Top ${top10.length} Customers by Revenue</span>
+        <span class="chart-total-badge">${fmtKWD(totalRevenue)} total</span>
+      </div>
+      <div class="canvas-container"><canvas id="chart_customers"></canvas></div>
+    </div>`;
+
+  const tableRows = rows.slice(0, 100).map((r, i) => {
+    const everFirst = firstSeenMap[r.name] ?? r.first;
+    const isNew = everFirst >= rangeStartTs;
+    const pct = totalRevenue ? (r.revenue / totalRevenue * 100) : 0;
+    return `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${escHTML(r.name)}</td>
+        <td><span class="badge" style="background:${isNew ? 'var(--green-lt)' : 'var(--blue-lt)'};color:${isNew ? 'var(--green)' : 'var(--blue)'}">${isNew ? 'New' : 'Returning'}</span></td>
+        <td>${fmtKWD(r.revenue)}</td>
+        <td>${r.invoices}</td>
+        <td>${fmtKWD(r.invoices ? r.revenue / r.invoices : 0)}</td>
+        <td>${new Date(r.last).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+        <td>
+          <div class="pct-bar-wrap">
+            <div class="pct-bar" style="width:${Math.max(2, pct)}%; background:var(--purple)"></div>
+            <span class="pct-txt">${pct.toFixed(1)}%</span>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+
+  const table = `
+    <div class="month-block">
+      <div class="month-header mh-jan">
+        <div class="month-title">Customers Ranked by Revenue</div>
+        <div class="month-meta"><span class="meta-item">Showing <span>${Math.min(100, rows.length)}</span> of <span>${rows.length}</span></span></div>
+      </div>
+      <div class="month-body">
+        <table class="data-table">
+          <thead><tr>
+            <th>#</th><th>Customer</th><th>Status</th><th>Revenue</th><th>Invoices</th>
+            <th>Avg. Order</th><th>Last Purchase</th><th>% of Total</th>
+          </tr></thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </div>
+    </div>`;
+
+  const diagnostic = diagnoseCustomerFieldIssue(rows, filtered[0]);
+  return diagnostic + summary + chart + table;
+}
+
+function renderCustomerChart() {
+  const canvas = document.getElementById('chart_customers');
+  if (!canvas || !_customerRows.length) return;
+  if (chartInstances['chart_customers']) {
+    chartInstances['chart_customers'].destroy();
+    delete chartInstances['chart_customers'];
+  }
+  const top10 = _customerRows.slice(0, 10);
+  chartInstances['chart_customers'] = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: top10.map(r => r.name.length > 18 ? r.name.slice(0, 16) + '…' : r.name),
+      datasets: [{
+        label: 'Revenue',
+        data: top10.map(r => r.revenue),
+        backgroundColor: '#7c3aed',
+        borderRadius: 5,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${fmtKWD(ctx.raw)}` } }
+      },
+      scales: {
+        x: { ticks: { callback: v => fmtShort(v) }, grid: { color: '#f1f5f9' } },
+        y: { grid: { display: false } }
+      }
+    }
+  });
+}
+
+/* ══════════════════════════════════════════════
    COMING SOON SECTION
 ══════════════════════════════════════════════ */
 function buildComingSoon() {
@@ -3223,7 +3713,7 @@ function buildComingSoon() {
   <div class="coming-soon-section">
     <div class="section-header">🚀 Coming Soon <span class="badge" style="background:var(--amber-lt);color:var(--amber)">Planned Features</span></div>
     <div class="coming-soon-grid">
-
+<!--
       <div class="coming-soon-card">
         <div class="cs-icon">👥</div>
         <div class="cs-title">Customer Analysis</div>
@@ -3236,7 +3726,7 @@ function buildComingSoon() {
         </ul>
           <span class="cs-badge planned">⏳ Planned</span>
       </div>
-<!--
+
       <div class="coming-soon-card">
         <div class="cs-icon">🎯</div>
         <div class="cs-title">Sales Forecasting</div>
