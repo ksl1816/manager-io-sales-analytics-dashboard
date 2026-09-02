@@ -527,6 +527,19 @@ body {
 
 .hdr-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 
+.acct-info {
+  display: flex; align-items: center; gap: 10px;
+  padding: 5px 5px 5px 12px; border-radius: 20px;
+  background: var(--light); border: 1px solid var(--border);
+  font-size: 12px; color: var(--text); white-space: nowrap;
+}
+.acct-info button {
+  padding: 4px 12px; border: 1px solid var(--border); border-radius: 16px;
+  background: #fff; color: var(--muted); font-size: 11px; font-weight: 700;
+  cursor: pointer;
+}
+.acct-info button:hover { border-color: var(--blue); color: var(--blue); }
+
 .btn-hire {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 6px 14px; border-radius: 7px;
@@ -1139,6 +1152,10 @@ body {
     <span id="conn-text">Checking…</span>
   </div>
   <div class="hdr-right">
+    <div class="acct-info" id="acctInfo" style="display:none">
+      <span id="acctInfoText"></span>
+      <button type="button" id="acctInfoLogout">Log out</button>
+    </div>
     <button class="btn-hire" onclick="openHireModal()" title="Need a custom extension built? Contact us.">
       <span class="btn-hire-icon">💼</span>
       <span>Need Custom Dev?</span>
@@ -1676,11 +1693,22 @@ if (loginGateForm) {
   });
 }
 
-// ── Persist session across visits ──
+// ── Persist session across visits, show account info ──
+const acctInfo = document.getElementById('acctInfo');
+const acctInfoText = document.getElementById('acctInfoText');
+const acctInfoLogout = document.getElementById('acctInfoLogout');
 if (fbReady) {
   auth.onAuthStateChanged(user => {
-    if (user) unlockGate(); else lockGate();
+    if (user) {
+      unlockGate();
+      if (acctInfo) acctInfo.style.display = 'flex';
+      if (acctInfoText) acctInfoText.textContent = user.displayName || user.email;
+    } else {
+      lockGate();
+      if (acctInfo) acctInfo.style.display = 'none';
+    }
   });
+  if (acctInfoLogout) acctInfoLogout.addEventListener('click', () => auth.signOut());
 }
 
 /* ══════════════════════════════════════════════
