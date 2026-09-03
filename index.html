@@ -102,6 +102,14 @@ body {
 .gate-tabs{ display: flex; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
 .gate-tab{ flex: 1; text-align: center; padding: 10px 0; font-size: 13px; font-weight: 700; color: var(--muted); border-bottom: 2px solid transparent; cursor: pointer; }
 .gate-tab.active{ color: var(--blue); border-color: var(--blue); }
+.gate-version-group{ display: flex; gap: 8px; }
+.gate-v-option{
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+  border: 1px solid var(--border); border-radius: 8px; padding: 9px 6px; cursor: pointer;
+  font-size: 12.5px; font-weight: 600; color: var(--muted); background: var(--light);
+}
+.gate-v-option input{ accent-color: var(--blue); width: 13px; height: 13px; }
+.gate-v-option:has(input:checked){ border-color: var(--blue); background: #fff; color: var(--text); }
 .gate-panel{ display: none; }
 .gate-panel.active{ display: block; }
 
@@ -1119,6 +1127,14 @@ body {
         <label class="gate-label" for="gsPassword">Password</label>
         <input class="gate-input" type="password" id="gsPassword" placeholder="At least 6 characters" minlength="6" required>
       </div>
+      <div class="gate-row">
+        <label class="gate-label">Manager.io Version</label>
+        <div class="gate-version-group">
+          <label class="gate-v-option"><input type="radio" name="gsVersion" value="Cloud" required id="gsVersionCloud" checked><span>Cloud</span></label>
+          <label class="gate-v-option"><input type="radio" name="gsVersion" value="Server" required id="gsVersionServer"><span>Server</span></label>
+          <label class="gate-v-option"><input type="radio" name="gsVersion" value="Desktop" required id="gsVersionDesktop"><span>Desktop</span></label>
+        </div>
+      </div>
       <div class="gate-error" id="gsError"></div>
       <button type="submit" class="gate-submit">Create Account & Enter</button>
     </form>
@@ -1672,12 +1688,14 @@ if (signupGateForm) {
     const name = document.getElementById('gsName').value.trim();
     const email = document.getElementById('gsEmail').value.trim();
     const password = document.getElementById('gsPassword').value;
+    const versionEl = document.querySelector('input[name="gsVersion"]:checked');
+    const version = versionEl ? versionEl.value : '';
     gsError.style.display = 'none';
     try {
       const cred = await auth.createUserWithEmailAndPassword(email, password);
       await cred.user.updateProfile({ displayName: name });
       await db.collection('users').doc(cred.user.uid).set({
-        name, email,
+        name, email, version,
         source: 'sales-analytics-extension',
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
@@ -2320,10 +2338,12 @@ function renderWithFilters() {
   }
 
   if (_activeTab === 'customers') {
+    _lastFilteredCustomers = filtered;
     html += buildCustomerAnalysis(filtered);
     app.innerHTML = html;
     attachFilterListeners(years);
     renderCustomerChart();
+    resolveCustomerNames(filtered);
     return;
   }
 
@@ -3414,9 +3434,9 @@ async function resolveItemNames(items) {
   let resolvedCount = 0;
   let sample = null;
 
-  // ── 1) Try the item catalogs in batch (inventory + non-inventory) ──
+  // ── 1) Try the item catalogs in batch (inventory, non-inventory, kits) ──
   if (!_inventoryLoaded) {
-    let invCount = 0, nonInvCount = 0, ok = false;
+    let invCount = 0, nonInvCount = 0, kitCount = 0, ok = false;
     try {
       const inv = await getBatchList('/api4/inventory-item-batch', n => setNote(`Loading inventory catalog… ${n.toLocaleString()}`));
       invCount = indexInventory(inv); ok = true;
@@ -3425,13 +3445,20 @@ async function resolveItemNames(items) {
       const non = await getBatchList('/api4/non-inventory-item-batch', n => setNote(`Loading non-inventory catalog… ${n.toLocaleString()}`));
       nonInvCount = indexInventory(non); ok = true;
     } catch (e) { /* non-inventory catalog unavailable */ }
-    batchStatus = ok ? `catalogs loaded (${invCount} inventory, ${nonInvCount} non-inventory)` : 'catalog endpoints unavailable';
+    try {
+      // Inventory Kits are a distinct Manager.io record type (bundles sold as
+      // one line) — previously not fetched here at all, which is why kit
+      // lines showed a raw UUID instead of a name.
+      const kits = await getBatchList('/api4/inventory-kit-batch', n => setNote(`Loading inventory kit catalog… ${n.toLocaleString()}`));
+      kitCount = indexInventory(kits); ok = true;
+    } catch (e) { /* inventory kit catalog unavailable */ }
+    batchStatus = ok ? `catalogs loaded (${invCount} inventory, ${nonInvCount} non-inventory, ${kitCount} kits)` : 'catalog endpoints unavailable';
     _inventoryLoaded = true;
   } else {
     batchStatus = 'catalog cached';
   }
 
-  // ── 2) Per-item lookups for anything still unresolved (documented endpoint) ──
+  // ── 2) Per-item lookups for anything still unresolved (documented endpoints) ──
   const stillMissing = need.filter(k => !_itemNameCache[k]);
   if (stillMissing.length) {
     const cap = Math.min(stillMissing.length, 500);
@@ -3440,11 +3467,22 @@ async function resolveItemNames(items) {
       const launch = () => {
         if (idx >= cap) { if (active === 0) resolve(); return; }
         const key = stillMissing[idx++]; active++;
+        // Try inventory-item first, then fall back to inventory-kit — a key
+        // that isn't a plain inventory item may be a kit instead.
         postMessageWithResponse({ type: 'api-request', method: 'GET', path: `/api4/inventory-item?Key=${encodeURIComponent(key)}` })
           .then(body => {
             const info = extractName(body);
+            if (info && info.name) {
+              _itemNameCache[key] = { name: info.name, code: info.code };
+              return null;
+            }
             if (!sample) sample = { uuid: String(key).slice(0,8), err: bodyError(body), fields: info?.fields || [] };
-            if (info && info.name) { _itemNameCache[key] = { name: info.name, code: info.code }; }
+            return postMessageWithResponse({ type: 'api-request', method: 'GET', path: `/api4/inventory-kit?Key=${encodeURIComponent(key)}` });
+          })
+          .then(kitBody => {
+            if (!kitBody) return; // already resolved above, or no fallback attempted
+            const kitInfo = extractName(kitBody);
+            if (kitInfo && kitInfo.name) { _itemNameCache[key] = { name: kitInfo.name, code: kitInfo.code }; }
           })
           .catch(err => { if (!sample) sample = { uuid: String(key).slice(0,8), err: (err && err.message) || 'request failed', fields: [] }; })
           .finally(() => { _itemTriedKeys.add(key); active--; done++; setNote(`Resolving names… ${done}/${cap}`); launch(); });
@@ -3519,14 +3557,31 @@ function indexInventory(list) {
 
 /* ══════════════════════════════════════════════
    CUSTOMER ANALYSIS
-   NOTE: Manager.io's sales-invoice-batch view is expected to carry the
-   customer's display name directly on the invoice (unlike inventory items,
-   which only carry a UUID and need separate resolution). This reads the
-   first field that's actually present. If your invoices come back with
-   "Unspecified Customer" for everything, open the browser console, run
+   NOTE: Manager.io's sales-invoice-batch view carries the customer either
+   as a plain display name OR as a UUID key that needs separate resolution
+   (this varies by instance/version). Earlier this file assumed it was
+   always a plain name, so a UUID key would get displayed as-is — that was
+   the bug behind "customers showing as UUID codes." Now any string that
+   looks like a key gets resolved through the customer catalog instead of
+   being shown raw. If your invoices still come back with "Unspecified
+   Customer" for everything, open the browser console, run
    console.log(ALL_ITEMS[0]) inside Manager.io, and check what the real
    field is called — then adjust getCustomerName() below.
 ══════════════════════════════════════════════ */
+let _customerNameCache = {};   // uuid → display name
+let _customerTriedKeys = new Set();
+let _customerResolveBusy = false;
+let _lastFilteredCustomers = [];
+
+// Manager.io keys look like UUIDs (with or without dashes) or long hex
+// strings — nothing a human would type as a customer name.
+function looksLikeManagerKey(s) {
+  if (typeof s !== 'string') return false;
+  const t = s.trim();
+  if (/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(t)) return true;
+  return t.length >= 20 && /^[0-9a-fA-F-]+$/.test(t);
+}
+
 function getCustomerName(inv) {
   const it = inv.item || {};
   // Broadened set of field names actually seen across different Manager.io
@@ -3534,10 +3589,75 @@ function getCustomerName(inv) {
   const raw = it.customer ?? it.customerName ?? it.customer?.name ?? it.customerKey?.name
     ?? it.billTo ?? it.contact ?? it.contactName ?? it.clientName ?? it.soldTo
     ?? inv.customerName ?? inv.customer;
+
   if (raw && typeof raw === 'object') {
     return raw.name || raw.itemName || raw.value || 'Unspecified Customer';
   }
-  return (typeof raw === 'string' && raw.trim()) ? raw.trim() : 'Unspecified Customer';
+  if (typeof raw === 'string' && raw.trim()) {
+    const key = raw.trim();
+    if (looksLikeManagerKey(key)) {
+      // It's a UUID, not a name — use the resolved cache if we have it,
+      // otherwise show a clearly-temporary placeholder (never the raw UUID).
+      return _customerNameCache[key] || 'Resolving…';
+    }
+    return key;
+  }
+  return 'Unspecified Customer';
+}
+
+// Same pattern as resolveItemNames(): batch-fetch the customer catalog,
+// then per-customer lookups for anything still missing.
+async function resolveCustomerNames(invoices) {
+  if (_customerResolveBusy) return;
+  const keysNeeded = new Set();
+  for (const inv of invoices) {
+    const it = inv.item || {};
+    const raw = it.customer ?? it.customerName ?? inv.customerName ?? inv.customer;
+    if (typeof raw === 'string' && looksLikeManagerKey(raw.trim())) {
+      const key = raw.trim();
+      if (!_customerNameCache[key] && !_customerTriedKeys.has(key)) keysNeeded.add(key);
+    }
+  }
+  if (!keysNeeded.size) return;
+  _customerResolveBusy = true;
+
+  // 1) Batch catalog first — one request instead of hundreds.
+  try {
+    const list = await getBatchList('/api4/customer-batch', () => {});
+    for (const el of list) {
+      const f = el.item && typeof el.item === 'object' ? el.item : el;
+      const name = f.name || f.customerName || el.name;
+      if (!name) continue;
+      for (const id of [el.key, el.id, f.key, f.id]) {
+        if (id) _customerNameCache[id] = name;
+      }
+    }
+  } catch (e) { /* customer-batch endpoint unavailable on this instance */ }
+
+  // 2) Per-customer fallback for anything the batch call didn't cover.
+  const stillMissing = [...keysNeeded].filter(k => !_customerNameCache[k]);
+  const cap = Math.min(stillMissing.length, 300);
+  let idx = 0, active = 0, done = 0;
+  await new Promise(resolve => {
+    const launch = () => {
+      if (idx >= cap) { if (active === 0) resolve(); return; }
+      const key = stillMissing[idx++]; active++;
+      postMessageWithResponse({ type: 'api-request', method: 'GET', path: `/api4/customer?Key=${encodeURIComponent(key)}` })
+        .then(body => {
+          const info = extractName(body);
+          if (info && info.name) _customerNameCache[key] = info.name;
+        })
+        .catch(() => { /* leave unresolved, will show 'Resolving…' → falls back gracefully */ })
+        .finally(() => { _customerTriedKeys.add(key); active--; done++; launch(); });
+    };
+    for (let i = 0; i < Math.min(6, cap); i++) launch();
+  });
+
+  _customerResolveBusy = false;
+  // Re-render the customers tab now that names have resolved.
+  if (_activeTab === 'customers' && _lastFilteredCustomers.length) {
+    renderWithFilters();
+  }
 }
 
 // If every (or nearly every) invoice fails to resolve a customer name, the
