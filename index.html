@@ -561,42 +561,6 @@ body {
 }
 .acct-bar button:hover { background: var(--blue); color: #fff; }
 
-.support-wrap { position: relative; }
-
-.btn-support {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 14px; border-radius: 7px;
-  background: #fff; border: 1px solid var(--border);
-  color: var(--muted); font-size: 12px; font-weight: 700;
-  cursor: pointer; white-space: nowrap; text-decoration: none;
-}
-.btn-support:hover { border-color: #f59e0b; color: #b45309; background: #fffbeb; }
-
-.support-popover {
-  display: none; position: absolute; top: calc(100% + 8px); right: 0; z-index: 300;
-  width: 300px; background: #fff; border: 1px solid var(--border); border-radius: 10px;
-  padding: 16px; box-shadow: 0 12px 30px rgba(0,0,0,.15);
-}
-.support-popover.open { display: block; }
-.support-pop-title { font-size: 13px; font-weight: 800; color: var(--text); margin-bottom: 6px; }
-.support-pop-note { font-size: 11.5px; color: var(--muted); line-height: 1.5; margin-bottom: 14px; }
-.support-row {
-  display: flex; align-items: center; gap: 8px; padding: 8px 0;
-  border-top: 1px solid #f1f5f9; font-size: 11.5px;
-}
-.support-row:first-of-type { border-top: none; }
-.support-label { color: var(--muted); flex-shrink: 0; width: 90px; }
-.support-value {
-  flex: 1; color: var(--text); font-weight: 600; word-break: break-all;
-  font-family: ui-monospace, monospace; font-size: 11px;
-}
-.support-copy {
-  flex-shrink: 0; padding: 3px 9px; border-radius: 6px; border: 1px solid var(--border);
-  background: var(--light); color: var(--muted); font-size: 10.5px; font-weight: 700; cursor: pointer;
-}
-.support-copy:hover { border-color: var(--blue); color: var(--blue); }
-.support-copy.copied { border-color: #16a34a; color: #16a34a; background: #f0fdf4; }
-
 .btn-hire {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 6px 14px; border-radius: 7px;
@@ -1217,36 +1181,6 @@ body {
     <span id="conn-text">Checking…</span>
   </div>
   <div class="hdr-right">
-    <div class="support-wrap">
-      <button type="button" class="btn-support" id="supportBtn" title="Enjoying this extension? Support its development — totally optional.">
-        <span>💛</span>
-        <span>Support Developer</span>
-      </button>
-      <div class="support-popover" id="supportPopover">
-        <div class="support-pop-title">Support via Wise Transfer</div>
-        <p class="support-pop-note">Totally optional — if this extension's useful to you, a transfer here is appreciated. Not required to use anything.</p>
-        <div class="support-row">
-          <span class="support-label">Account Holder</span>
-          <span class="support-value" id="supHolder">YOUR NAME HERE</span>
-          <button type="button" class="support-copy" data-copy-target="supHolder">Copy</button>
-        </div>
-        <div class="support-row">
-          <span class="support-label">Wise Email / Wisetag</span>
-          <span class="support-value" id="supEmail">your-wise-email@example.com</span>
-          <button type="button" class="support-copy" data-copy-target="supEmail">Copy</button>
-        </div>
-        <div class="support-row">
-          <span class="support-label">IBAN / Account No.</span>
-          <span class="support-value" id="supIban">ADD-YOUR-IBAN-OR-ACCOUNT-NUMBER</span>
-          <button type="button" class="support-copy" data-copy-target="supIban">Copy</button>
-        </div>
-        <div class="support-row">
-          <span class="support-label">Currency</span>
-          <span class="support-value" id="supCurrency">USD / PKR</span>
-          <button type="button" class="support-copy" data-copy-target="supCurrency">Copy</button>
-        </div>
-      </div>
-    </div>
     <button class="btn-hire" onclick="openHireModal()" title="Need a custom extension built? Contact us.">
       <span class="btn-hire-icon">💼</span>
       <span>Need Custom Dev?</span>
@@ -1890,15 +1824,29 @@ function escHTML(s) {
 // Whitelist: only paths starting with our known endpoint are permitted.
 // Blocks any attempt to redirect the fetch loop to a different endpoint,
 // even if a malicious `next_page_token` value tried to smuggle one in.
+// customer-batch/customer and inventory-kit-batch/inventory-kit were added
+// here to support Customer Analysis and Inventory Kit name resolution —
+// they were previously missing, which is why those lookups failed with
+// "Path not in whitelist" even though the code that calls them was correct.
+const ALLOWED_API_PREFIXES = [
+  '/api4/sales-invoice-batch',
+  '/api4/inventory-item',
+  '/api4/non-inventory-item',
+  '/api4/inventory-kit',
+  '/api4/receipt',
+  '/api4/profit-and-loss-statement-account',
+  '/api4/customer',
+];
 function assertSafePath(path) {
   if (typeof path !== 'string') throw new Error('Invalid path type');
   if (path.length > 2048) throw new Error('Path too long');
   if (/^(javascript|data|vbscript|file|blob):/i.test(path)) {
     throw new Error('Blocked URL scheme in path');
   }
-  if (!(path.startsWith('/api4/sales-invoice-batch') || path.startsWith('/api4/inventory-item') || path.startsWith('/api4/non-inventory-item') || path.startsWith('/api4/receipt') || path.startsWith('/api4/profit-and-loss-statement-account'))) {
-    throw new Error('Path not in whitelist: only sales-invoice-batch, inventory-item, non-inventory-item, receipt and profit-and-loss-statement-account are allowed');
-  }  if (!/^[A-Za-z0-9._\-\/?=&%+:,]+$/.test(path)) {
+  if (!ALLOWED_API_PREFIXES.some(prefix => path.startsWith(prefix))) {
+    throw new Error(`Path not in whitelist: only ${ALLOWED_API_PREFIXES.map(p => p.replace('/api4/', '')).join(', ')} are allowed`);
+  }
+  if (!/^[A-Za-z0-9._\-\/?=&%+:,]+$/.test(path)) {
     throw new Error('Path contains disallowed characters');
   }
 }
@@ -2006,33 +1954,6 @@ setTimeout(checkManagerConnection, 600);
 ══════════════════════════════════════════════ */
 function openHireModal() { document.getElementById('hire-overlay').classList.add('open'); }
 function closeHireModal() { document.getElementById('hire-overlay').classList.remove('open'); }
-
-// ── Support popover (Wise details as plain text, copy-to-clipboard) ──
-const supportBtn = document.getElementById('supportBtn');
-const supportPopover = document.getElementById('supportPopover');
-if (supportBtn && supportPopover) {
-  supportBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    supportPopover.classList.toggle('open');
-  });
-  document.addEventListener('click', (e) => {
-    if (!supportPopover.contains(e.target) && e.target !== supportBtn) {
-      supportPopover.classList.remove('open');
-    }
-  });
-  document.querySelectorAll('.support-copy').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const targetId = btn.dataset.copyTarget;
-      const text = document.getElementById(targetId)?.textContent || '';
-      navigator.clipboard.writeText(text).then(() => {
-        const original = btn.textContent;
-        btn.textContent = 'Copied!';
-        btn.classList.add('copied');
-        setTimeout(() => { btn.textContent = original; btn.classList.remove('copied'); }, 1500);
-      }).catch(() => { /* clipboard API unavailable — user can still select text manually */ });
-    });
-  });
-}
 
 function openSecurityModal() {
   updateOriginDisplay();
