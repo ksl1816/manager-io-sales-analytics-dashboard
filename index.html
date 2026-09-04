@@ -1890,18 +1890,12 @@ function updateOriginDisplay() {
 }
 
 /* ══════════════════════════════════════════════
-   CLOUD-ONLY LICENSE CHECK
-   This extension needs a live Cloud (or Server) Manager.io connection —
-   it was registered for on the KSL website as a Cloud/Server account.
-   Since this extension can't talk to that website's account records
-   (no network access is allowed in here — see the CSP at the top of this
-   file), the real check happens here instead: we look at the actual host
-   this extension is running inside of. Recognized Cloud/Server domains are
-   manager.io, manager.cloud, and accounting.link (and their subdomains) —
-   Desktop and local Server installs are not. If someone registered as "Desktop" (or is simply running the
-   extension from a Desktop/local install regardless of what they claimed
-   at sign-up), the domain won't match and the extension refuses to load
-   — rather than pulling data through a connection it wasn't built for.
+   LICENSE CHECK — DISABLED
+   Previously this restricted the extension to Cloud/Server Manager.io
+   hosts only and blocked Desktop/local installs. Per updated policy,
+   all Manager.io hosts (Cloud, Server, Desktop) are allowed to use the
+   extension freely; the only gate remaining is the sign-up/login step
+   handled elsewhere in this file.
 ══════════════════════════════════════════════ */
 const CLOUD_HOST_PATTERN = /(^|\.)(manager\.io|manager\.cloud|accounting\.link)$/i;
 let _licenseBlocked = false;
@@ -1916,27 +1910,8 @@ function isCloudOrigin(origin) {
 }
 
 function enforceCloudOnlyLicense() {
-  if (!MANAGER_ORIGIN || _licenseBlocked) return;
-  if (isCloudOrigin(MANAGER_ORIGIN)) return; // ✓ genuine Cloud/Server host — proceed normally
-
-  _licenseBlocked = true;
-  const btn = document.getElementById('load-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Blocked — Desktop install detected'; }
-  setConnectionState('disconnected', 'Cloud account required',
-    'This extension only runs on a Cloud or Server Manager.io account.');
-
-  const app = document.getElementById('app');
-  if (app) {
-    app.innerHTML = `<div class="error-box">
-      🔒 <strong>This extension requires a Cloud or Server Manager.io account.</strong><br>
-      We detected this is running on a Desktop / local install (<code>${escHTML(MANAGER_ORIGIN)}</code>),
-      not a recognized Cloud domain (manager.io, manager.cloud, or accounting.link). If you registered
-      on our website as a Desktop user, this extension isn't included in that tier —
-      <a href="https://wa.me/923458696636?text=Hi%20KSL%2C%20my%20account%20shows%20as%20Desktop%20but%20I%27d%20like%20to%20use%20the%20Sales%20Analytics%20extension." target="_blank" rel="noopener">message us on WhatsApp</a>
-      to talk about upgrading to Cloud.
-      <br><br><small>If this looks wrong and you believe you're on a genuine Cloud account on a domain we haven't listed yet, contact us with the address shown above.</small>
-    </div>`;
-  }
+  // No-op: all Manager.io hosts (Cloud, Server, Desktop) are permitted.
+  return;
 }
 
 // HTML-escape any value before putting it in innerHTML or attributes.
