@@ -1,6 +1,6 @@
 # 📊 Manager.io — Sales Analytics Dashboard
 
-> A free, self-contained extension for [Manager.io](https://www.manager.io) that turns your sales invoice data into a fully interactive daily analytics dashboard — no backend, no setup, just install and run inside Manager.io or host on any static site.
+> A free, self-contained extension for [Manager.io](https://www.manager.io) that turns your sales invoice data into a fully interactive daily analytics dashboard — no backend, no setup, just install and use.
 
 ![Manager.io Extension](https://img.shields.io/badge/Manager.io-Extension-blue?style=flat-square)
 ![License](https://img.shields.io/badge/License-Free-green?style=flat-square)
@@ -21,6 +21,12 @@
 - **Table / Chart / Both toggle** — switch views per month without losing your place
 - **Best and worst day highlighting** — 🏆 best day and ⚠ worst day are visually marked in every monthly table
 - **Fully paginated data fetch** — loads every invoice across all API pages; never misses a record
+
+---
+
+## 📌 Maintenance Notice
+
+This extension is in **maintenance mode**. Bug fixes and critical improvements will be applied as needed, but no new features are planned.
 
 ---
 
@@ -79,7 +85,7 @@ Once installed inside Manager.io:
 | External library | [Chart.js 4.4.1](https://www.chartjs.org/) via CDN |
 | API used | `GET /api4/sales-invoice-batch` (the extension pages the Manager.io batch endpoint to fetch all sales invoices)
 | Pagination | Full — loops all pages via `next_page_token` |
-| Currency | Auto-detected and converted from invoice data. The extension computes invoice line totals in base currency using per-invoice exchange values (fields used include `exchangeRate` and `exchangeRateIsInverse`); when a currency code is present in the invoice it will be read (e.g. `invoice.item.currency` or `baseCurrency`) and otherwise the UI falls back to the browser locale for display. |
+| Currency | Auto-detected and converted from invoice data. The extension computes invoice line totals in base currency using per-invoice exchange values (fields used include `exchangeRate` and `exchangeRateTradingDifference`)
 | Framework | Vanilla HTML / CSS / JavaScript — no build step required |
 | Manager.io communication | `postMessage` API (standard extension protocol) |
 
@@ -87,13 +93,13 @@ Once installed inside Manager.io:
 
 ## 🌍 Currency Support
 
-This extension **does not hardcode any currency**. On load, it reads the currency code directly from your Manager.io invoice data when present and converts foreign-currency invoice line totals into base currency using the invoice `exchangeRate` and `exchangeRateIsInverse` fields. If no currency or rate information is present the dashboard will use raw invoice totals and fall back to your browser's locale for formatting.
+This extension **does not hardcode any currency**. On load, it reads the currency code directly from your Manager.io invoice data when present and converts foreign-currency invoice line totals into your base currency automatically. If an invoice doesn't carry a usable exchange rate, it falls back to line totals as-recorded.
 
 ---
 
 ## ⚠️ Disclaimer
 
-This extension is an independent, community-built tool and is **not officially affiliated with or endorsed by Manager.io**. It is provided free of charge, as-is. Always verify financial figures against your official Manager.io reports before making business decisions.
+This extension is an independent, community-built tool and is **not officially affiliated with or endorsed by Manager.io**. It is provided free of charge, as-is. Always verify financial figures against your Manager.io instance before relying on any output or reporting.
 
 This extension only **reads** data — it makes no write, edit, or delete calls to the Manager.io API.
 
@@ -101,7 +107,7 @@ This extension only **reads** data — it makes no write, edit, or delete calls 
 
 ## 🛠️ Built With
 
-This extension was built using the **[Manager.io Developer Toolkit](https://github.com/ksl1816/manager-developer-toolkit-extenstion)** — and AI tools a companion extension that lets you explore Manager.io API endpoints and generate AI prompts for building extensions like this one.
+This extension was built using the **[Manager.io Developer Toolkit](https://github.com/ksl1816/manager-developer-toolkit-extenstion)** — and AI tools a companion extension that lets you explore any Manager.io endpoint, design schemas, and prompt-engineer ready-to-use extensions.
 
 ---
 
