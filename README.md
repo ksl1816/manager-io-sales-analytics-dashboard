@@ -1,6 +1,6 @@
 # 📊 Manager.io — Sales Analytics Dashboard
 
-> A free, self-contained extension for [Manager.io](https://www.manager.io) that turns your sales invoice data into a fully interactive daily analytics dashboard — no backend, no setup, just install and go.
+> A free, self-contained extension for [Manager.io](https://www.manager.io) that turns your sales invoice data into a fully interactive daily analytics dashboard — no backend, no setup, just install and run inside Manager.io or host on any static site.
 
 ![Manager.io Extension](https://img.shields.io/badge/Manager.io-Extension-blue?style=flat-square)
 ![License](https://img.shields.io/badge/License-Free-green?style=flat-square)
@@ -17,7 +17,7 @@
 - **Interactive charts** — line charts per month and an overlay comparison chart powered by Chart.js
 - **Smart insights** — automatically generated analysis including trend detection (upward / declining / volatile), best and worst months, and consistently strong or weak days across months
 - **Flexible filters** — filter by year, individual months, or a custom date range
-- **Auto currency conversion into base currency** — convert the foreign currency into base currency to adapt the reporting figures correct. 
+- **Auto currency conversion into base currency** — converts foreign-currency invoice line totals into base currency using invoice exchange rates when available
 - **Table / Chart / Both toggle** — switch views per month without losing your place
 - **Best and worst day highlighting** — 🏆 best day and ⚠ worst day are visually marked in every monthly table
 - **Fully paginated data fetch** — loads every invoice across all API pages; never misses a record
@@ -77,9 +77,9 @@ Once installed inside Manager.io:
 |---|---|
 | File type | Single self-contained `.html` file |
 | External library | [Chart.js 4.4.1](https://www.chartjs.org/) via CDN |
-| API used | `GET /api4/batch-sales-invoice` |
+| API used | `GET /api4/sales-invoice-batch` (the extension pages the Manager.io batch endpoint to fetch all sales invoices)
 | Pagination | Full — loops all pages via `next_page_token` |
-| Currency | Auto-detected from invoice data (`baseCurrency` / `currency` field) |
+| Currency | Auto-detected and converted from invoice data. The extension computes invoice line totals in base currency using per-invoice exchange values (fields used include `exchangeRate` and `exchangeRateIsInverse`); when a currency code is present in the invoice it will be read (e.g. `invoice.item.currency` or `baseCurrency`) and otherwise the UI falls back to the browser locale for display. |
 | Framework | Vanilla HTML / CSS / JavaScript — no build step required |
 | Manager.io communication | `postMessage` API (standard extension protocol) |
 
@@ -87,7 +87,7 @@ Once installed inside Manager.io:
 
 ## 🌍 Currency Support
 
-This extension **does not hardcode any currency**. On load, it reads the currency code directly from your Manager.io invoice data. If no currency is found in the data, it falls back to your browser's locale currency. This means it works correctly for businesses in any country.
+This extension **does not hardcode any currency**. On load, it reads the currency code directly from your Manager.io invoice data when present and converts foreign-currency invoice line totals into base currency using the invoice `exchangeRate` and `exchangeRateIsInverse` fields. If no currency or rate information is present the dashboard will use raw invoice totals and fall back to your browser's locale for formatting.
 
 ---
 
